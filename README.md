@@ -5,10 +5,10 @@ Given a FASTA reference genome, a multi-sample VCF file and a GFF file, this scr
 
 ## Installation
 
-    git clone https://github.com/santiagosnchez/GetPhased
-    cd GetPhased
-    chmod +x getPhased.pl
-    sudo cp getPhased.pl /usr/local/bin
+    git clone https://github.com/santiagosnchez/vcf2fasta
+    cd vcf2fasta
+    chmod +x vcf2fasta.pl
+    sudo cp vcf2fasta.pl /usr/local/bin
 
 ## Running the code
 

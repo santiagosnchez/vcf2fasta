@@ -53,7 +53,14 @@ def readfasta(file):
         return data
 
 def readgff(file):
-
+    gff = []
+    with open(file, "r") as g:                        
+        for line in g:
+            if "#" in line:
+                next
+            else :
+                gff.append(line.rstrip().split("\t"))
+    return gff
 
 def readvcf(file):
     

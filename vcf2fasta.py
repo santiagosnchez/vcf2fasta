@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # vcf2fasta.py
 
-import argparse, textwrap
+import argparse
 import gzip
 import sys
 from re import match
@@ -10,11 +10,17 @@ def main():
     # parse arguments
     parser = argparse.ArgumentParser(prog="vcf2fasta.py",
         formatter_class=argparse.RawTextHelpFormatter,
-        description="""Converts a regions in the genome into a FASTA alignment
-        based on a VCF and a GFF file.""",
-        epilog=textwrap.dedent('''\
+        description="""
+Converts regions in the genome into FASTA alignments
+provided a VCF and a GFF file.""",
+        epilog="""
+The VCF file can be gzipped or not. All the other files are
+expected to be uncompressed.
+
 examples:
-'''))
+python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
+
+""")
     a1 = parser.add_argument(
     '--fasta', '-f', metavar='GENOME', type=str, required=True,
     help='FASTA file with the reference genome.')
@@ -25,14 +31,24 @@ examples:
     '--gff', '-g', metavar='GFF', type=str, required=True,
     help='individual FASTA records.')
     a4 = parser.add_argument(
-    '--feat', '-e', metavar='FEAT', type=str,
+    '--feat', '-e', nargs="*", metavar='FEAT', type=str,
     help='individual FASTA records.')
     parser.add_argument(
     '--blend', '-b', action="store_true", default=False,
     help='if sequences should be printed to screen.')
     args = parser.parse_args()
     genome = readfasta(args.fasta)
-    print "\n"
+    gff = readgff(args.gff)
+    print "\nlines in GFF file: %s" % len(gff)
+    if args.feat == None:
+        feat = list(set([ gff[i][2] for i in range(len(gff)) ]))
+        featstr = raw_input("Which feature(s) would you like to extract?\n"+
+            " ".join(feat)+"\n"+
+            "Type them separated by a space if multiple:")
+        feat = featstr.split(" ")
+    else:
+        feat = args.feat
+    print feat[0]
 
 
 # functions
@@ -53,17 +69,19 @@ def readfasta(file):
         return data
 
 def readgff(file):
-    gff = []
+    gff = {}
     with open(file, "r") as g:                        
         for line in g:
             if "#" in line:
                 next
-            else :
-                gff.append(line.rstrip().split("\t"))
+            else:
+                line = line.rstrip().split("\t")
+                if ifkeyisfound(gff,line[0]):
+                    gff[line[0]].append(line)
+                else:
+                    gff[line[0]] = []
+                    gff[line[0]].append(line)
     return gff
-
-def readvcf(file):
-    
 
 def wrapseq(seq, w):
     chunks = []

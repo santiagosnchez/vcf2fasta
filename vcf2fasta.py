@@ -79,7 +79,7 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
             os.makedirs(fe)
         for gene in genes:
             if args.blend:
-                with open(fe+"/"+gene) as o:
+                with open(fe+"/"+gene, 'w') as o:
                     for indiv in samples:
                         o.write(">"+indiv+"\n")
                         for region in sorted([ int(i) for i in data[gene][fe].keys() ]):
@@ -93,7 +93,7 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
             else:
                 for region in sorted([ int(i) for i in data[gene][fe].keys() ]):
                     strand = data[gene][fe][str(region)].keys()[0]
-                    with open(fe+"/"+gene+"."+region) as o:
+                    with open(fe+"/"+gene+"."+region, 'w') as o:
                         for indiv in samples:
                             o.write(">"+indiv+"\n")
                             seq = data[gene][fe][str(region)][strand][indiv]

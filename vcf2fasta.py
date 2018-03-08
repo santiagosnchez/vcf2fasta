@@ -5,6 +5,7 @@ import argparse
 import gzip
 import sys
 import os
+import time
 from re import match, search, sub
 from string import maketrans
 
@@ -43,7 +44,7 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
     genome = readfasta(args.fasta)
     # read gff
     gff = readgff(args.gff)
-    print "Lines in GFF file: %s" % len(gff)
+    sys.stdout.write(" [readgff] lines in GFF file: {}\n".format(len(gff)))
     # get features
     feat = args.feat
     # parse vcf file
@@ -61,6 +62,8 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
             data = {}
             notfound = []
             count = 0
+            t1 = time.time()
+            sys.stdout.write(" {:<10s} {:<15s} {:<10s} {:<10s}\n".format("SNP","CHROM","POS","TIME (sec)"))
         else:
             var = var.rstrip().split("\t")
             if not keyisfound(gff, var[0]):
@@ -69,7 +72,9 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
             else:
                 data = vcf2fasta(var, gff, genome, head, sampstart, feat[0], data)
                 count += 1
-                sys.stdout.write("Reading SNP %s: %s:%s             \r" % (count,var[0],var[1])),
+                t2 = time.time()
+                tnow = "{:.2f}".format(t2-t1)
+                sys.stdout.write(" {:<10d} {:<15s} {:<10s} {:<10s}\r".format(count,var[0],var[1],tnow)),
                 sys.stdout.flush()
     print '%s variants were skipped; not found in GFF' % len(notfound)
     # save data to disk
@@ -223,7 +228,7 @@ def readfasta(file):
                 head = line[1:]
                 data[head] = ''
                 seqn += 1
-                sys.stdout.write("FASTA seqs read: %s\r" % seqn),
+                sys.stdout.write(" [readfasta] FASTA seqs read: {}\r".format(seqn)),
                 sys.stdout.flush()
             else:
                 data[head] += line

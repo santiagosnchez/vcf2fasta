@@ -27,3 +27,4 @@ Use the `-h` flag for more details:
     perl vcf2fasta.pl -f ref.fas -v snps.phased.vcf -g annotation.gff -e CDS --phased
     perl vcf2fasta.pl -f ref.fas -v snps.phased.vcf -g annotation.gff -e CDS --phased --ref
 
+## Note: Working on a Python version...

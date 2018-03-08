@@ -71,9 +71,9 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
                 count += 1
                 sys.stdout.write("Reading SNP %s: %s:%s             \r" % (count,var[0],var[1])),
                 sys.stdout.flush()
+    print '%s variants were skipped; not found in GFF' % len(notfound)
     # save data to disk
     genes = data.keys()
-    print ""
     for fe in feat:
         if not os.path.exists(fe):
             os.makedirs(fe)
@@ -88,7 +88,7 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
                         if strand == '-':
                             seq = revcomp(seq)
                         o.write(seq+"\n")
-                    sys.stdout.write("Writing: "+fe+"/"+gene+"\r"),
+                    sys.stdout.write("Writing: "+fe+"/"+gene+"        \r"),
                     sys.stdout.flush()
             else:
                 for region in sorted([ int(i) for i in data[gene][fe].keys() ]):
@@ -100,7 +100,7 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
                             if strand == '-':
                                 seq = revcomp(seq)
                             o.write(seq+"\n")
-                    sys.stdout.write("Writing: "+fe+"/"+gene+"."+region+"\r"),
+                    sys.stdout.write("Writing: "+fe+"/"+gene+"."+region+"        \r"),
                     sys.stdout.flush()
     print "Done"
 

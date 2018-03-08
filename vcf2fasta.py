@@ -40,6 +40,7 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
     '--blend', '-b', action="store_true", default=False,
     help='if sequences should be printed to screen.')
     args = parser.parse_args()
+    print parser.prog + " " + parser.version
     # read genome
     genome = readfasta(args.fasta)
     # read gff

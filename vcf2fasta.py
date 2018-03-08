@@ -64,7 +64,8 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
             var = var.rstrip().split("\t")
             data = vcf2fasta(var, gff, genome, head, sampstart, feat[0], data)
             count += 1
-            sys.stdout.write("Reading SNP: %s\r" % count)
+            sys.stdout.write("Reading SNP: %s\r" % count),
+            sys.stdout.flush()
     # save data to disk
     genes = data.keys()
     print ""
@@ -82,7 +83,8 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
                         if strand == '-':
                             seq = revcomp(seq)
                         o.write(seq+"\n")
-                    sys.stdout.write("Writing: "+fe+"/"+gene+"\r")
+                    sys.stdout.write("Writing: "+fe+"/"+gene+"\r"),
+                    sys.stdout.flush()
             else:
                 for region in sorted([ int(i) for i in data[gene][fe].keys() ]):
                     strand = data[gene][fe][str(region)].keys()[0]
@@ -93,15 +95,9 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
                             if strand == '-':
                                 seq = revcomp(seq)
                             o.write(seq+"\n")
-                    sys.stdout.write("Writing: "+fe+"/"+gene+"."+region+"\r")
+                    sys.stdout.write("Writing: "+fe+"/"+gene+"."+region+"\r"),
+                    sys.stdout.flush()
     print "Done"
-
-
-
-    
-
-
-    
 
 
 # functions
@@ -223,6 +219,7 @@ def readfasta(file):
                 data[head] = ''
                 seqn += 1
                 sys.stdout.write("FASTA seqs read: %s\r" % seqn),
+                sys.stdout.flush()
             else:
                 data[head] += line
         print ""

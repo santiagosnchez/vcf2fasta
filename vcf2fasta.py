@@ -59,14 +59,17 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
             sampstart = head.index('FORMAT')+1
             samples = head[sampstart:]
             data = {}
+            notfound = []
+            count = 0
         else:
             var = var.rstrip().split("\t")
             if not keyisfound(gff, var[0]):
+                notfound.append(var[0])
                 next
-                print "Region "+var[0]+" not found in GFF file"
             else:
                 data = vcf2fasta(var, gff, genome, head, sampstart, feat[0], data)
-                sys.stdout.write("Reading SNP: %s:%s\r" % (var[0],var[1])),
+                count += 1
+                sys.stdout.write("Reading SNP %s: %s:%s             \r" % (count,var[0],var[1])),
                 sys.stdout.flush()
     # save data to disk
     genes = data.keys()

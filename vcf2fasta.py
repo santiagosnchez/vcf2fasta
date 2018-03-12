@@ -137,7 +137,7 @@ def vcf2fasta(var, gff, genome, head, sampstart, feat, data, blend):
                                 if keyisfound(data[gname][k[3]][k[6]],pheada):
                                     data = updatealn(data, gname, k[3], pheada, var, j, k[6])
                                 if keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                    data = updatealn(data, gname, k[3], pheada, var, j, k[6])
+                                    data = updatealn(data, gname, k[3], pheadb, var, j, k[6])
                                 if not keyisfound(data[gname][k[3]][k[6]],pheada) and not keyisfound(data[gname][k[3]][k[6]],pheadb):
                                     data[gname][k[3]][k[6]][pheada] = genome[var[0]][int(k[3])-1:int(k[4])]
                                     data[gname][k[3]][k[6]][pheadb] = genome[var[0]][int(k[3])-1:int(k[4])]

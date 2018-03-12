@@ -35,7 +35,7 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
     '--gff', '-g', metavar='GFF', type=str, required=True,
     help='individual FASTA records.')
     a4 = parser.add_argument(
-    '--feat', '-e', metavar='FEAT', type=str, required=True,
+    '--feat', '-e', nargs="*", metavar='FEAT', type=str, required=True,
     help='individual FASTA records.')
     parser.add_argument(
     '--blend', '-b', action="store_true", default=False,
@@ -71,7 +71,7 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
                 notfound.append(var[0])
                 next
             else:
-                data = vcf2fasta(var, gff, genome, head, sampstart, feat, data, args.blend)
+                data = vcf2fasta(var, gff, genome, head, sampstart, feat[0], data, args.blend)
                 count += 1
                 t2 = time.time()
                 tnow = "{:.2f}".format(t2-t1)
@@ -83,114 +83,80 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
         print ''
     # save data to disk
     genes = data.keys()
-    reg = data[genes[0]].keys()
-    stra = data[genes[0]][reg[0]].keys()
-    samples = sorted(data[genes[0]][reg[0]][stra[0]].keys())
+    reg = data[genes[0]][feat[0]].keys()
+    stra = data[genes[0]][feat[0]][reg[0]].keys()
+    samples = sorted(data[genes[0]][feat[0]][reg[0]][stra[0]].keys())
     count = 0
-    if not os.path.exists(feat):
-        os.makedirs(feat)
-    for gene in genes:
-        if args.blend:
-            with open(feat+"/"+gene, 'w') as o:
-                for indiv in samples:
-                    seq = ''
-                    o.write(">"+indiv+"\n")
-                    for region in sorted([ int(i) for i in data[gene].keys() ]):
-                        strand = data[gene][str(region)].keys()[0]
-                        seq += data[gene][str(region)][strand][indiv]
-                    if strand == '-':
-                        seq = revcomp(seq)
-                    o.write(seq+"\n")
-            count += 1
-        else:
-            for region in sorted([ int(i) for i in data[gene].keys() ]):
-                strand = data[gene][str(region)].keys()[0]
-                with open(feat+"/"+gene+"."+str(region), 'w') as o:
+    for fe in feat:
+        if not os.path.exists(fe):
+            os.makedirs(fe)
+        for gene in genes:
+            if args.blend:
+                with open(fe+"/"+gene, 'w') as o:
                     for indiv in samples:
+                        seq = ''
                         o.write(">"+indiv+"\n")
-                        seq = data[gene][str(region)][strand][indiv]
+                        for region in sorted([ int(i) for i in data[gene][fe].keys() ]):
+                            strand = data[gene][fe][str(region)].keys()[0]
+                            seq += data[gene][fe][str(region)][strand][indiv]
                         if strand == '-':
                             seq = revcomp(seq)
                         o.write(seq+"\n")
                 count += 1
+            else:
+                for region in sorted([ int(i) for i in data[gene][fe].keys() ]):
+                    strand = data[gene][fe][str(region)].keys()[0]
+                    with open(fe+"/"+gene+"."+str(region), 'w') as o:
+                        for indiv in samples:
+                            o.write(">"+indiv+"\n")
+                            seq = data[gene][fe][str(region)][strand][indiv]
+                            if strand == '-':
+                                seq = revcomp(seq)
+                            o.write(seq+"\n")
+                    count += 1
     print " Done writing {0} files to {1}".format(count,feat)
 
 
 # functions
 
 def vcf2fasta(var, gff, genome, head, sampstart, feat, data, blend):
-    genes = gff[var[0]][feat].keys()
-    if blend:
-        for gname in genes:
-            gmin = min([ int(k[3]) for k in gff[var[0]][feat][gname] ])
-            gmax = max([ int(k[4]) for k in gff[var[0]][feat][gname] ])
-            if gmin <= int(var[1]) <= gmax:
-                data = startdict(data,gname)
-                for k in gff[var[0]][feat][gname]:
-                    data[gname] = startdict(data[gname],k[3])
-                    data[gname][k[3]] = startdict(data[gname][k[3]],k[6])
-                    if int(k[3]) <= int(var[1]) <= int(k[4]):
+    start = [ gff[var[0]][i][3] for i in range(len(gff[var[0]])) ]
+    end = [ gff[var[0]][i][4] for i in range(len(gff[var[0]])) ]
+    features = [ gff[var[0]][i][2] for i in range(len(gff[var[0]])) ]
+    strand = [ gff[var[0]][i][6] for i in range(len(gff[var[0]])) ]
+    gname = [ gff[var[0]][i][8] for i in range(len(gff[var[0]])) ]
+    if not blend:
+        for i in zip(features,start,end,strand,gname): 
+                if i[0] == feat:
+                    if int(i[1]) <= int(var[1]) <= int(i[2]):
+                        gname = getgnames(i[-1])
+                        data = startdict(data,gname)
+                        data[gname] = startdict(data[gname],feat)
+                        data[gname][feat] = startdict(data[gname][feat],i[1])
+                        data[gname][feat][i[1]] = startdict(data[gname][feat][i[1]],i[3])
                         for j in range(sampstart,len(head)):
                             if checkphase(var, j) == 'phased':
                                 pheada = head[j]+"_a"
                                 pheadb = head[j]+"_b"
-                                if keyisfound(data[gname][k[3]][k[6]],pheada):
-                                    data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                                if keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                    data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                                if not keyisfound(data[gname][k[3]][k[6]],pheada) and not keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                    data[gname][k[3]][k[6]][pheada] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                    data[gname][k[3]][k[6]][pheadb] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                    data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                                    data = updatealn(data, gname, k[3], pheadb, var, j, k[6])
+                                if keyisfound(data[gname][feat][i[1]][i[3]],pheada):
+                                    data = updatealn(data, gname, feat, i[1], pheada, var, j, i[3])
+                                if keyisfound(data[gname][feat][i[1]][i[3]],pheadb):
+                                    data = updatealn(data, gname, feat, i[1], pheadb, var, j, i[3])
+                                if not keyisfound(data[gname][feat][i[1]][i[3]],pheada) and not keyisfound(data[gname][feat][i[1]][i[3]],pheadb):
+                                    data[gname][feat][i[1]][i[3]][pheada] = genome[var[0]][int(i[1])-1:int(i[2])]
+                                    data[gname][feat][i[1]][i[3]][pheadb] = genome[var[0]][int(i[1])-1:int(i[2])]
+                                    data = updatealn(data, gname, feat, i[1], pheada, var, j, i[3])
+                                    data = updatealn(data, gname, feat, i[1], pheadb, var, j, i[3])
                             else:
-                                if keyisfound(data[gname][k[3]][k[6]],head[j]):
-                                    data = updatealn(data, gname, k[3], head[j], var, j, k[6])
+                                if keyisfound(data[gname][feat][i[1]][i[3]],head[j]):
+                                    data = updatealn(data, gname, feat, i[1], head[j], var, j, i[3])
                                 else:
-                                    data[gname][k[3]][k[6]][head[j]] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                    data = updatealn(data, gname, k[3], head[j], var, j, k[6])
-                    else:
-                        for j in range(sampstart,len(head)):
-                            if checkphase(var, j) == 'phased':
-                                pheada = head[j]+"_a"
-                                pheadb = head[j]+"_b"
-                                if not keyisfound(data[gname][k[3]][k[6]],pheada) and not keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                    data[gname][k[3]][k[6]][pheada] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                    data[gname][k[3]][k[6]][pheadb] = genome[var[0]][int(k[3])-1:int(k[4])]
-                            else:
-                                if not keyisfound(data[gname][k[3]][k[6]],head[j]):
-                                    data[gname][k[3]][k[6]][head[j]] = genome[var[0]][int(k[3])-1:int(k[4])]
+                                    data[gname][feat][i[1]][i[3]][head[j]] = genome[var[0]][int(i[1])-1:int(i[2])]
+                                    data = updatealn(data, gname, feat, i[1], head[j], var, j, i[3])
         return data
-    else:
-        for gname in genes:
-            for k in gff[var[0]][feat][gname]:
-                if int(k[3]) <= int(var[1]) <= int(k[4]):
-                    data = startdict(data,gname)
-                    data[gname] = startdict(data[gname],k[3])
-                    for j in range(sampstart,len(head)):
-                        if checkphase(var, j) == 'phased':
-                            pheada = head[j]+"_a"
-                            pheadb = head[j]+"_b"
-                            if keyisfound(data[gname][k[3]][k[6]],pheada):
-                                data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                            if keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                            if not keyisfound(data[gname][k[3]][k[6]],pheada) and not keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                data[gname][k[3]][k[6]][pheada] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                data[gname][k[3]][k[6]][pheadb] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                                data = updatealn(data, gname, k[3], pheadb, var, j, k[6])
-                        else:
-                            if keyisfound(data[gname][k[3]][k[6]],head[j]):
-                                data = updatealn(data, gname, k[3], head[j], var, j, k[6])
-                            else:
-                                data[gname][k[3]][k[6]][head[j]] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                data = updatealn(data, gname, k[3], head[j], var, j, k[6])
 
-
-
-def updatealn(data, gname, start, samp, var, ind, strand):
-    seq = data[gname][start][strand][samp].upper()
+def updatealn(data, gname, feat, start, samp, var, ind, strand):
+    seq = data[gname][feat][start][strand][samp].upper()
     pos = int(var[1])-int(start)
     alleles = {'0':var[3], '.':'?'}
     j = 0
@@ -205,19 +171,19 @@ def updatealn(data, gname, start, samp, var, ind, strand):
     if checkphase(var, ind) == 'phased':
         nvar = [ alleles[i] for i in gt.split("|") ]
         if search("_a$", samp):
-            data[gname][start][strand][samp] = seq[:pos] + nvar[0] + seq[pos+1:]
+            data[gname][feat][start][strand][samp] = seq[:pos] + nvar[0] + seq[pos+1:]
         if search("_b$", samp):
-            data[gname][start][strand][samp] = seq[:pos] + nvar[1] + seq[pos+1:]
+            data[gname][feat][start][strand][samp] = seq[:pos] + nvar[1] + seq[pos+1:]
         return data
     elif checkphase(var, ind) == 'unphased':
         nvar = [ alleles[i] for i in gt.split("/") ]
         if all([ i == nvar[0] for i in nvar ]):
-            data[gname][start][strand][samp] = seq[:pos] + nvar[0] + seq[pos+1:]
+            data[gname][feat][start][strand][samp] = seq[:pos] + nvar[0] + seq[pos+1:]
         else:
-            data[gname][start][strand][samp] = seq[:pos] + iupac(nvar) + seq[pos+1:]
+            data[gname][feat][start][strand][samp] = seq[:pos] + iupac(nvar) + seq[pos+1:]
         return data
     elif checkphase(var, ind) == 'haploid':
-        data[gname][start][strand][samp] = seq[:pos] + alleles[gt] + seq[samp][pos+1:]
+        data[gname][feat][start][strand][samp] = seq[:pos] + alleles[gt] + seq[samp][pos+1:]
         return data
 
 def checkphase(var, ind):
@@ -271,11 +237,11 @@ def readgff(file):
                 line = line.rstrip().split("\t")
                 gname = getgnames(line[-1])
                 gff = startdict(gff,line[0])
-                gff[line[0]] = startdict(gff[line[0]],line[2])
-                if keyisfound(gff[line[0]][line[2]],gname):
-                    gff[line[0]][line[2]][gname] += [line]
+                gff[line[0]] = startdict(gff[line[0]],gname)
+                if keyisfound(gff[line[0]][gname],line[2]):
+                    gff[line[0]][gname][line[2]] += [line]
                 else:
-                    gff[line[0]][line[2]][gname] = [line]
+                    gff[line[0]][gname][line[2]] = [line]
     return gff
 
 def getgnames(gname):

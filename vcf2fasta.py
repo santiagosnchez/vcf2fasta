@@ -64,7 +64,7 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
             notfound = []
             count = 0
             t1 = time.time()
-            sys.stdout.write(" [vcf2fasta] {:<10s} {:<15s} {:<10s} {:<10s}\n".format("SNP","CHROM","POS","TIME (sec)"))
+            sys.stdout.write(" [vcf2fasta] {:<10s} {:<15s} {:<10s} {:<10s}\n".format("SNP","CHROM","POS","TIME"))
         else:
             var = var.rstrip().split("\t")
             if not keyisfound(gff, var[0]):
@@ -74,11 +74,25 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
                 data = vcf2fasta(var, gff, genome, head, sampstart, feat, data, args.blend)
                 count += 1
                 t2 = time.time()
-                tnow = "{:.2f}".format(t2-t1)
-                sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<10s}\r".format(count,var[0],var[1],tnow)),
-                sys.stdout.flush()
+                tnow = t2-t1
+                if tnow < 60.0:
+                    tnows = "{:.2f}".format(tnow)
+                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<5s}seconds \r".format(count,var[0],var[1],tnows)),
+                    sys.stdout.flush()
+                elif  60.0 < tnow < 3600.0:
+                    tnows = "{:.2f}".format(tnow/60.0)
+                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<5s}minutes \r".format(count,var[0],var[1],tnows)),
+                    sys.stdout.flush()
+                elif 3600.0 < tnow < 86400.0:
+                    tnows = "{:.2f}".format(tnow/3600.0)
+                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<5s}hours   \r".format(count,var[0],var[1],tnows)),
+                    sys.stdout.flush()
+                else:
+                    tnows = "{:.2f}".format(tnow/86400.0)
+                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<5s}days    \r".format(count,var[0],var[1],tnows)),
+                    sys.stdout.flush()
     if len(notfound) > 0:
-        print '\n [warning] %s variants were skipped; not found in GFF' % len(notfound)
+        print '\n [warning] {} variants were skipped; not found in GFF'.format(len(notfound))
     else:
         print ''
     # save data to disk
@@ -263,11 +277,14 @@ def readfasta(file):
 
 def readgff(file):
     gff = {}
+    c = 0
     with open(file, "r") as g:                        
         for line in g:
             if "#" in line:
                 next
             else:
+                sys.stdout.write(" [readgff]   Reading GFF file ... \r"),
+                sys.stdout.flush()
                 line = line.rstrip().split("\t")
                 gname = getgnames(line[-1])
                 gff = startdict(gff,line[0])
@@ -276,6 +293,8 @@ def readgff(file):
                     gff[line[0]][line[2]][gname] += [line]
                 else:
                     gff[line[0]][line[2]][gname] = [line]
+                c += 1
+    print "\n [readgff]   {} entries found ...".format(c)
     return gff
 
 def getgnames(gname):

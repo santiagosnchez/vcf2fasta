@@ -77,19 +77,19 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
                 tnow = t2-t1
                 if tnow < 60.0:
                     tnows = "{:.2f}".format(tnow)
-                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<5s}seconds \r".format(count,var[0],var[1],tnows)),
+                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<6s}seconds \r".format(count,var[0],var[1],tnows)),
                     sys.stdout.flush()
                 elif  60.0 < tnow < 3600.0:
                     tnows = "{:.2f}".format(tnow/60.0)
-                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<5s}minutes \r".format(count,var[0],var[1],tnows)),
+                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<6s}minutes \r".format(count,var[0],var[1],tnows)),
                     sys.stdout.flush()
                 elif 3600.0 < tnow < 86400.0:
                     tnows = "{:.2f}".format(tnow/3600.0)
-                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<5s}hours   \r".format(count,var[0],var[1],tnows)),
+                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<6s}hours   \r".format(count,var[0],var[1],tnows)),
                     sys.stdout.flush()
                 else:
                     tnows = "{:.2f}".format(tnow/86400.0)
-                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<5s}days    \r".format(count,var[0],var[1],tnows)),
+                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<6s}days    \r".format(count,var[0],var[1],tnows)),
                     sys.stdout.flush()
     if len(notfound) > 0:
         print '\n [warning] {} variants were skipped; not found in GFF'.format(len(notfound))

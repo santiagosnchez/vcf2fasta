@@ -258,7 +258,7 @@ def revcomp(seq):
     tt = maketrans('ACGT?N','TGCA?N')
     return seq[::-1].translate(tt)
 
-def read
+#def read
 
 def readfasta(file):
     data = {}
@@ -275,6 +275,7 @@ def readfasta(file):
             c += 1
             sys.stdout.write(" [readfasta] reading FASTA sequence: {}\r".format(c)),
             sys.stdout.flush()
+    print ""
     return data
 
 def readgff(file):
@@ -284,22 +285,18 @@ def readgff(file):
         lines = g.readlines()
         # get rid of comments in the GFF
         lines = filter(lambda i: match('^((?!#).)*$',i), lines)
-        for line in g:
-            if "#" in line:
-                next
+        lines = map(lambda i: i.rstrip().split("\t"), lines)
+        sys.stdout.write(" [readgff]   Reading GFF file ...")
+        for line in lines:
+            gff = startdict(gff,line[0])
+            gname = getgnames(line[-1])
+            gff[line[0]] = startdict(gff[line[0]],line[2])
+            if keyisfound(gff[line[0]][line[2]],gname):
+                gff[line[0]][line[2]][gname] += [line]
             else:
-                sys.stdout.write(" [readgff]   Reading GFF file ... \r"),
-                sys.stdout.flush()
-                line = line.rstrip().split("\t")
-                gname = getgnames(line[-1])
-                gff = startdict(gff,line[0])
-                gff[line[0]] = startdict(gff[line[0]],line[2])
-                if keyisfound(gff[line[0]][line[2]],gname):
-                    gff[line[0]][line[2]][gname] += [line]
-                else:
-                    gff[line[0]][line[2]][gname] = [line]
-                c += 1
-    print "\n [readgff]   {} entries found ...".format(c)
+                gff[line[0]][line[2]][gname] = [line]
+            c += 1
+    print "\n [readgff]   {} entries found".format(c)
     return gff
 
 def getgnames(gname):

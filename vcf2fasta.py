@@ -260,20 +260,20 @@ def revcomp(seq):
 
 def readfasta(file):
     data = {}
-    seqn=0
-    with open(file, "r") as f:
-        for line in f:
-            line = line.rstrip()
-            if match("^>",line):
-                head = line[1:]
-                data[head] = ''
-                seqn += 1
-                sys.stdout.write(" [readfasta] FASTA seqs read: {}\r".format(seqn)),
-                sys.stdout.flush()
+    c = 0
+    with open(file, 'r') as f:
+        lines = f.readlines()
+        lines = map(lambda x: x.rstrip(), lines)
+        ihead = map(lambda i: lines.index(i), filter(lambda k: ">" in k, lines))
+        for i in range(len(ihead)):
+            if ihead[i] != ihead[-1]:
+                data[lines[ihead[i]][1:]] = ''.join(lines[ihead[i]+1:ihead[i+1]])
             else:
-                data[head] += line
-        print ""
-        return data
+                data[lines[ihead[i]][1:]] = ''.join(lines[ihead[i]+1:])
+            c += 1
+            sys.stdout.write(" [readfasta] reading FASTA sequence: {}\r".format(c)),
+            sys.stdout.flush()
+    return data
 
 def readgff(file):
     gff = {}

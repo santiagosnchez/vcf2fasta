@@ -8,6 +8,7 @@ import os
 import time
 from re import match, search, sub
 from string import maketrans
+from multiprocessing import Pool
 
 def main():
     # parse arguments
@@ -39,226 +40,180 @@ python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
     help='individual FASTA records.')
     parser.add_argument(
     '--blend', '-b', action="store_true", default=False,
-    help='if sequences should be printed to screen.')
+    help='concatenate GFF entries of FEAT into a single alignment. Useful for CDS. (default: False)')
+    parser.add_argument(
+    '--threads', '-t', metavar='N', type=int, default=1,
+    help='number of parallel processes for VCF parser.')
     args = parser.parse_args()
     print " {} v{}".format(parser.prog,parser.version)
     # read genome
     genome = readfasta(args.fasta)
     # read gff
-    gff = readgff(args.gff)
-    sys.stdout.write(" [readgff]   lines in GFF file: {}\n".format(len(gff)))
-    # get features
-    feat = args.feat
+    gff = readgff(args.gff, args.feat)
     # parse vcf file
-    if search(".vcf.gz$", args.vcf):
-        v = gzip.open(args.vcf, "r")
-    else:
-        v = open(args.vcf, "r")
-    for var in v:
-        if match("##", var):
-            next
-        elif match("#CHROM", var):
-            head = var.rstrip().split("\t")
-            sampstart = head.index('FORMAT')+1
-            data = {}
-            notfound = []
-            count = 0
-            t1 = time.time()
-            sys.stdout.write(" [vcf2fasta] {:<10s} {:<15s} {:<10s} {:<10s}\n".format("SNP","CHROM","POS","TIME"))
-        else:
-            var = var.rstrip().split("\t")
-            if not keyisfound(gff, var[0]):
-                notfound.append(var[0])
-                next
-            else:
-                data = vcf2fasta(var, gff, genome, head, sampstart, feat, data, args.blend)
-                count += 1
-                t2 = time.time()
-                tnow = t2-t1
-                if tnow < 60.0:
-                    tnows = "{:.2f}".format(tnow)
-                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<6s}seconds \r".format(count,var[0],var[1],tnows)),
-                    sys.stdout.flush()
-                elif  60.0 < tnow < 3600.0:
-                    tnows = "{:.2f}".format(tnow/60.0)
-                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<6s}minutes \r".format(count,var[0],var[1],tnows)),
-                    sys.stdout.flush()
-                elif 3600.0 < tnow < 86400.0:
-                    tnows = "{:.2f}".format(tnow/3600.0)
-                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<6s}hours   \r".format(count,var[0],var[1],tnows)),
-                    sys.stdout.flush()
-                else:
-                    tnows = "{:.2f}".format(tnow/86400.0)
-                    sys.stdout.write(" [vcf2fasta] {:<10d} {:<15s} {:<10s} {:<6s}days    \r".format(count,var[0],var[1],tnows)),
-                    sys.stdout.flush()
-    if len(notfound) > 0:
-        print '\n [warning] {} variants were skipped; not found in GFF'.format(len(notfound))
-    else:
-        print ''
-    # save data to disk
-    genes = data.keys()
-    reg = data[genes[0]].keys()
-    stra = data[genes[0]][reg[0]].keys()
-    samples = sorted(data[genes[0]][reg[0]][stra[0]].keys())
-    count = 0
-    if not os.path.exists(feat):
-        os.makedirs(feat)
-    for gene in genes:
-        if args.blend:
-            with open(feat+"/"+gene, 'w') as o:
-                for indiv in samples:
-                    seq = ''
-                    o.write(">"+indiv+"\n")
-                    for region in sorted([ int(i) for i in data[gene].keys() ]):
-                        strand = data[gene][str(region)].keys()[0]
-                        seq += data[gene][str(region)][strand][indiv]
-                    if strand == '-':
-                        seq = revcomp(seq)
-                    o.write(seq+"\n")
-            count += 1
-        else:
-            for region in sorted([ int(i) for i in data[gene].keys() ]):
-                strand = data[gene][str(region)].keys()[0]
-                with open(feat+"/"+gene+"."+str(region), 'w') as o:
-                    for indiv in samples:
-                        o.write(">"+indiv+"\n")
-                        seq = data[gene][str(region)][strand][indiv]
-                        if strand == '-':
-                            seq = revcomp(seq)
-                        o.write(seq+"\n")
-                count += 1
-    print " Done writing {0} files to {1}".format(count,feat)
-
+    variants,samples,phase = readvcf(args.vcf, gff)
+    # convert to fasta
+    vcf2fasta(variants, gff, genome, args.feat, args.blend, samples, phase)
+    sys.exit()
 
 # functions
 
-def vcf2fasta(var, gff, genome, head, sampstart, feat, data, blend):
-    genes = gff[var[0]][feat].keys()
-    if blend:
-        for gname in genes:
-            gmin = min([ int(k[3]) for k in gff[var[0]][feat][gname] ])
-            gmax = max([ int(k[4]) for k in gff[var[0]][feat][gname] ])
-            if gmin <= int(var[1]) <= gmax:
-                data = startdict(data,gname)
-                for k in gff[var[0]][feat][gname]:
-                    data[gname] = startdict(data[gname],k[3])
-                    data[gname][k[3]] = startdict(data[gname][k[3]],k[6])
-                    if int(k[3]) <= int(var[1]) <= int(k[4]):
-                        for j in range(sampstart,len(head)):
-                            if checkphase(var, j) == 'phased':
-                                pheada = head[j]+"_a"
-                                pheadb = head[j]+"_b"
-                                if keyisfound(data[gname][k[3]][k[6]],pheada):
-                                    data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                                if keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                    data = updatealn(data, gname, k[3], pheadb, var, j, k[6])
-                                if not keyisfound(data[gname][k[3]][k[6]],pheada) and not keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                    data[gname][k[3]][k[6]][pheada] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                    data[gname][k[3]][k[6]][pheadb] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                    data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                                    data = updatealn(data, gname, k[3], pheadb, var, j, k[6])
-                            else:
-                                if keyisfound(data[gname][k[3]][k[6]],head[j]):
-                                    data = updatealn(data, gname, k[3], head[j], var, j, k[6])
-                                else:
-                                    data[gname][k[3]][k[6]][head[j]] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                    data = updatealn(data, gname, k[3], head[j], var, j, k[6])
-                    else:
-                        for j in range(sampstart,len(head)):
-                            if checkphase(var, j) == 'phased':
-                                pheada = head[j]+"_a"
-                                pheadb = head[j]+"_b"
-                                if not keyisfound(data[gname][k[3]][k[6]],pheada) and not keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                    data[gname][k[3]][k[6]][pheada] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                    data[gname][k[3]][k[6]][pheadb] = genome[var[0]][int(k[3])-1:int(k[4])]
-                            else:
-                                if not keyisfound(data[gname][k[3]][k[6]],head[j]):
-                                    data[gname][k[3]][k[6]][head[j]] = genome[var[0]][int(k[3])-1:int(k[4])]
-        return data
-    else:
-        for gname in genes:
-            for k in gff[var[0]][feat][gname]:
-                if int(k[3]) <= int(var[1]) <= int(k[4]):
-                    data = startdict(data,gname)
-                    data[gname] = startdict(data[gname],k[3])
-                    for j in range(sampstart,len(head)):
-                        if checkphase(var, j) == 'phased':
-                            pheada = head[j]+"_a"
-                            pheadb = head[j]+"_b"
-                            if keyisfound(data[gname][k[3]][k[6]],pheada):
-                                data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                            if keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                            if not keyisfound(data[gname][k[3]][k[6]],pheada) and not keyisfound(data[gname][k[3]][k[6]],pheadb):
-                                data[gname][k[3]][k[6]][pheada] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                data[gname][k[3]][k[6]][pheadb] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                data = updatealn(data, gname, k[3], pheada, var, j, k[6])
-                                data = updatealn(data, gname, k[3], pheadb, var, j, k[6])
-                        else:
-                            if keyisfound(data[gname][k[3]][k[6]],head[j]):
-                                data = updatealn(data, gname, k[3], head[j], var, j, k[6])
-                            else:
-                                data[gname][k[3]][k[6]][head[j]] = genome[var[0]][int(k[3])-1:int(k[4])]
-                                data = updatealn(data, gname, k[3], head[j], var, j, k[6])
+def vcf2fasta(data, gff, genome, feat, blend, samples, phase):
+    chrom = gff.keys()
+    gene_gff = {}
+    for ch in chrom:
+        genes = gff[ch].keys()
+        for g in genes:
+            gene_gff[g] = gff[ch][g]
+    genes = data.keys()
+    print genes
+    if phase == 'phased':
+        samples = sorted(reduce(lambda x,y: x+y, map(lambda i: [i+'_a',i+'_b'], samples)))
+    if not os.path.exists(feat):
+        os.makedirs(feat)
+    sys.stdout.write(" {:<13s}writing FASTA files ...".format("[vcf2fasta]"))
+    c = 0
+    for g in genes:
+        if blend:
+            o = open(feat+"/"+g+".fas", "w")
+            concat = []
+        entries = gene_gff[g]
+        pos = data[g].keys()
+        for e in entries:
+            tmpdata = {}
+            inregion = filter(lambda x: int(e[3]) <= x <= int(e[4]), pos)
+            if inregion:
+                for s in samples:
+                    tmpdata[s] = genome[e[0]][int(e[3])-1:int(e[4])]
+                for i in inregion:
+                    p = i-int(e[3])
+                    for s in samples:
+                        tmpdata[s] = tmpdata[s][:p] + data[g][i][s] + tmpdata[s][p+1:]
+            else:
+                if blend:
+                    for s in samples:
+                        tmpdata[s] = genome[e[0]][int(e[3])-1:int(e[4])]
+            if blend:
+                concat.append(tmpdata)
+            else:
+                with open(feat+"/"+g+"."+e[3]+"-"+e[4]+".fas", "w") as o:
+                    for s in samples:
+                        o.write(">"+s+"\n")
+                        o.write(tmpdata[s]+"\n")
+                c += 1
+        if blend:
+            for s in samples:
+                o.write(">"+s+"\n")
+                for e in concat:
+                    o.write(e[s])        
+                o.write("\n")
+            c += 1
+    sys.stdout.write("\n {:<13s}done writing {} files to {}\n".format("[vcf2fasta]",c,feat))
 
-
-
-def updatealn(data, gname, start, samp, var, ind, strand):
-    seq = data[gname][start][strand][samp].upper()
-    pos = int(var[1])-int(start)
-    alleles = {'0':var[3], '.':'?'}
-    j = 0
-    if search(',', var[4]):
-        alt = var[4].split(',')
-        for i in alt:
-            j += 1
-            alleles[str(j)] = i
-    else:
-        alleles['1'] = var[4]
-    gt = var[ind].split(":")[0]
-    if checkphase(var, ind) == 'phased':
-        nvar = [ alleles[i] for i in gt.split("|") ]
-        if search("_a$", samp):
-            data[gname][start][strand][samp] = seq[:pos] + nvar[0] + seq[pos+1:]
-        if search("_b$", samp):
-            data[gname][start][strand][samp] = seq[:pos] + nvar[1] + seq[pos+1:]
-        return data
-    elif checkphase(var, ind) == 'unphased':
-        nvar = [ alleles[i] for i in gt.split("/") ]
-        if all([ i == nvar[0] for i in nvar ]):
-            data[gname][start][strand][samp] = seq[:pos] + nvar[0] + seq[pos+1:]
+def getgene(var, gff):
+    gff = gff[var[0]]
+    genes = gff.keys()
+    def isingene(x, p, g):
+        gmin = min([ int(i[3]) for i in g ])
+        gmax = max([ int(i[4]) for i in g ])
+        if gmin <= p <= gmax:
+            return True
         else:
-            data[gname][start][strand][samp] = seq[:pos] + iupac(nvar) + seq[pos+1:]
-        return data
-    elif checkphase(var, ind) == 'haploid':
-        data[gname][start][strand][samp] = seq[:pos] + alleles[gt] + seq[samp][pos+1:]
-        return data
+            return False
+    pos = [ int(i) for i in [str(var[1])] * len(genes) ]
+    gff = [ gff[i] for i in genes ]
+    lookup = map(isingene, genes, pos, gff)
+    if not all([lookup[0] == i for i in lookup]):
+        return genes[ lookup.index(True) ]
 
-def checkphase(var, ind):
-    gt = var[ind].split(":")[0]
-    if search('|', gt):
-        return 'phased'
-    elif search('/', gt):
-        return 'unphased'
+def extractvcf(data, var, head, sampstart, samples, phase, gff):
+    if keyisfound(gff, var[0]):
+        gene = getgene(var, gff)
+        if gene:
+            data = startdict(data, gene)
+            pos = int(var[1])
+            data[gene] = startdict(data[gene], pos)
+            alleles = {'0':var[3], '.':'?'}
+            j = 0
+            if search(',', var[4]):
+                alt = var[4].split(',')
+                for i in alt:
+                    j += 1
+                    alleles[str(j)] = i
+            else:
+                alleles['1'] = var[4]
+            gt = map(lambda x: var[x].split(":")[0], range(sampstart,len(head)))
+            if phase == 'phased':
+                for i in range(len(gt)):
+                    nvar = map(lambda x: alleles[x], gt[i].split("|"))
+                    data[gene][pos][samples[i]+"_a"] = nvar[0]
+                    data[gene][pos][samples[i]+"_b"] = nvar[1]
+                return data
+            elif phase == 'unphased':
+                for i in range(len(gt)):
+                    nvar = map(lambda x: alleles[x], gt[i].split("/"))
+                    if all([ i == nvar[0] for i in nvar ]):
+                        data[gene][pos][samples[i]] = nvar[0]
+                    else:
+                        data[gene][pos][samples[i]] = iupac(nvar)
+                return data
+            elif phase == 'haploid':
+                for i in range(len(gt)):
+                    data[gene][pos][samples[i]] = alleles[gt[i]]
+                return data
+        else:
+            return data
     else:
-        return 'haploid'
+        return data
 
-def iupac(nvar):
-    myiupac = {
-    'AT':'W','TA':'W',
-    'AC':'M','CA':'M',
-    'AG':'R','GA':'R',
-    'TC':'Y','CT':'Y',
-    'TG':'K','GT':'K',
-    'GC':'S','CG':'S',
-    }
-    return myiupac[''.join(nvar)]
-
-def revcomp(seq):
-    tt = maketrans('ACGT?N','TGCA?N')
-    return seq[::-1].translate(tt)
-
-#def read
+def readvcf(file, gff):
+    data = {}
+    if search(".vcf.gz$", file):
+        v = gzip.open(file, "r")
+    else:
+        v = open(file, "r")
+    sys.stdout.write(" {:<13s}loading VCF file ...\n".format("[readvcf]"))
+    lines = v.readlines()
+    v.close()
+    sys.stdout.write(" {:<13s}stripping comment lines ...\n".format("[readvcf]"))
+    lines = filter(lambda x: match('^((?!##).)*$',x), lines)
+    lines = map(lambda x: x.rstrip(), lines)
+    head = lines[0]
+    head = head.split("\t")
+    sampstart = head.index('FORMAT')+1
+    samples = head[sampstart:]
+    sys.stdout.write(" {:<13s}header has {} samples\n".format("[readvcf]",len(samples)))
+    sys.stdout.write(" {:<13s}splitting fields ...\n".format("[readvcf]"))
+    lines = lines[1:]
+    lines = map(lambda x: x.split("\t"), lines)
+    phase = checkphase(lines[0], sampstart)
+    sys.stdout.write(" {:<13s}VCF is phased, splitting into \"a\" and \"b\" haplotypes\n".format("[readvcf]"))
+    sys.stdout.write(" {:<13s}{:<10s} {:<15s} {:<10s} {:<10s}\n".format("[extractvcf]","SNP","CHROM","POS","TIME"))
+    c = 0
+    t1 = time.time()
+    for var in lines:
+        data = extractvcf(data, var, head, sampstart, samples, phase, gff)
+        c += 1
+        t2 = time.time()
+        tnow = t2-t1
+        if tnow < 60.0:
+            tnows = "{:.2f}".format(tnow)
+            sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<6s}seconds \r".format("[extractvcf]",c,var[0],var[1],tnows)),
+            sys.stdout.flush()
+        elif  60.0 < tnow < 3600.0:
+            tnows = "{:.2f}".format(tnow/60.0)
+            sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<6s}minutes \r".format("[extractvcf]",c,var[0],var[1],tnows)),
+            sys.stdout.flush()
+        elif 3600.0 < tnow < 86400.0:
+            tnows = "{:.2f}".format(tnow/3600.0)
+            sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<6s}hours \r".format("[extractvcf]",c,var[0],var[1],tnows)),
+            sys.stdout.flush()
+        else:
+            tnows = "{:.2f}".format(tnow/86400.0)
+            sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<6s}days \r".format("[extractvcf]",c,var[0],var[1],tnows)),
+            sys.stdout.flush()
+    print ""
+    return data,samples,phase
 
 def readfasta(file):
     data = {}
@@ -273,30 +228,30 @@ def readfasta(file):
             else:
                 data[lines[ihead[i]][1:]] = ''.join(lines[ihead[i]+1:])
             c += 1
-            sys.stdout.write(" [readfasta] reading FASTA sequence: {}\r".format(c)),
+            sys.stdout.write(" {:<13s}reading FASTA sequence: {}\r".format("[readfasta]",c)),
             sys.stdout.flush()
     print ""
     return data
 
-def readgff(file):
+def readgff(file, feat):
     gff = {}
     c = 0
+    sys.stdout.write(" {:<13s}reading GFF file ...".format("[readgff]"))
     with open(file, "r") as g:
         lines = g.readlines()
         # get rid of comments in the GFF
         lines = filter(lambda i: match('^((?!#).)*$',i), lines)
         lines = map(lambda i: i.rstrip().split("\t"), lines)
-        sys.stdout.write(" [readgff]   Reading GFF file ...")
+        lines = filter(lambda i: i[2] == feat, lines)
         for line in lines:
             gff = startdict(gff,line[0])
             gname = getgnames(line[-1])
-            gff[line[0]] = startdict(gff[line[0]],line[2])
-            if keyisfound(gff[line[0]][line[2]],gname):
-                gff[line[0]][line[2]][gname] += [line]
+            if keyisfound(gff[line[0]],gname):
+                gff[line[0]][gname] += [line]
             else:
-                gff[line[0]][line[2]][gname] = [line]
+                gff[line[0]][gname] = [line]
             c += 1
-    print "\n [readgff]   {} entries found".format(c)
+    print "\n {:<13s}{} {} entries found".format("[readgff]",c,feat)
     return gff
 
 def getgnames(gname):
@@ -332,6 +287,30 @@ def keyisfound(x, key):
         return True
     except KeyError:
         return False
+
+def checkphase(var, ind):
+    gt = var[ind].split(":")[0]
+    if search('|', gt):
+        return 'phased'
+    elif search('/', gt):
+        return 'unphased'
+    else:
+        return 'haploid'
+
+def iupac(nvar):
+    myiupac = {
+    'AT':'W','TA':'W',
+    'AC':'M','CA':'M',
+    'AG':'R','GA':'R',
+    'TC':'Y','CT':'Y',
+    'TG':'K','GT':'K',
+    'GC':'S','CG':'S',
+    }
+    return myiupac[''.join(nvar)]
+
+def revcomp(seq):
+    tt = maketrans('ACGT?N','TGCA?N')
+    return seq[::-1].translate(tt)
 
 def wrapseq(seq, w):
     chunks = []

@@ -23,27 +23,25 @@ The VCF file can be gzipped or not. All the other files are
 expected to be uncompressed.
 
 examples:
-python vcf2fasta.py -f genome.fas -v variants.vcf -g regions.gff -f CDS --blend
+python vcf2fasta.py -f genome.fas -c variants.vcf -g regions.gff -e CDS -b
+python vcf2fasta.py -f genome.fas -c variants.vcf -g regions.gff -e gene
 
 """)
-    a1 = parser.add_argument(
+    parser.add_argument(
     '--fasta', '-f', metavar='GENOME', type=str, required=True,
     help='FASTA file with the reference genome.')
-    a2 = parser.add_argument(
+    parser.add_argument(
     '--vcf', '-c', metavar='VCF', type=str, required=True,
     help='[VCF] the vcf file.')
-    a3 = parser.add_argument(
+    parser.add_argument(
     '--gff', '-g', metavar='GFF', type=str, required=True,
     help='individual FASTA records.')
-    a4 = parser.add_argument(
+    parser.add_argument(
     '--feat', '-e', metavar='FEAT', type=str, required=True,
     help='individual FASTA records.')
     parser.add_argument(
     '--blend', '-b', action="store_true", default=False,
     help='concatenate GFF entries of FEAT into a single alignment. Useful for CDS. (default: False)')
-    parser.add_argument(
-    '--threads', '-t', metavar='N', type=int, default=1,
-    help='number of parallel processes for VCF parser.')
     args = parser.parse_args()
     print " {} v{}".format(parser.prog,parser.version)
     # read genome
@@ -66,7 +64,6 @@ def vcf2fasta(data, gff, genome, feat, blend, samples, phase):
         for g in genes:
             gene_gff[g] = gff[ch][g]
     genes = data.keys()
-    print genes
     if phase == 'phased':
         samples = sorted(reduce(lambda x,y: x+y, map(lambda i: [i+'_a',i+'_b'], samples)))
     if not os.path.exists(feat):
@@ -79,35 +76,62 @@ def vcf2fasta(data, gff, genome, feat, blend, samples, phase):
             concat = []
         entries = gene_gff[g]
         pos = data[g].keys()
-        for e in entries:
-            tmpdata = {}
-            inregion = filter(lambda x: int(e[3]) <= x <= int(e[4]), pos)
-            if inregion:
-                for s in samples:
-                    tmpdata[s] = genome[e[0]][int(e[3])-1:int(e[4])]
-                for i in inregion:
-                    p = i-int(e[3])
-                    for s in samples:
-                        tmpdata[s] = tmpdata[s][:p] + data[g][i][s] + tmpdata[s][p+1:]
-            else:
-                if blend:
+        if len(entries) > 1:
+            for e in entries:
+                tmpdata = {}
+                inregion = filter(lambda x: int(e[3]) <= x <= int(e[4]), pos)
+                if inregion:
                     for s in samples:
                         tmpdata[s] = genome[e[0]][int(e[3])-1:int(e[4])]
+                    for i in inregion:
+                        p = i-int(e[3])
+                        for s in samples:
+                            tmpdata[s] = tmpdata[s][:p] + data[g][i][s] + tmpdata[s][p+1:]
+                else:
+                    if blend:
+                        for s in samples:
+                            tmpdata[s] = genome[e[0]][int(e[3])-1:int(e[4])]
+                if blend:
+                    concat.append(tmpdata)
+                else:
+                    with open(feat+"/"+g+"."+e[3]+"-"+e[4]+".fas", "w") as o:
+                        for s in samples:
+                            o.write(">"+s+"\n")
+                            if e[6] == '-':
+                                o.write(revcomp(tmpdata[s])+"\n")
+                            else:
+                                o.write(tmpdata[s]+"\n")
+                    c += 1
             if blend:
-                concat.append(tmpdata)
-            else:
-                with open(feat+"/"+g+"."+e[3]+"-"+e[4]+".fas", "w") as o:
-                    for s in samples:
-                        o.write(">"+s+"\n")
+                for s in samples:
+                    o.write(">"+s+"\n")
+                    seq = ''
+                    for e in concat:
+                        seq += e[s]
+                    if entries[0][6] == '-':
+                        o.write(revcomp(seq)+"\n")
+                    else:
+                        o.write(seq+"\n")
+                c += 1
+        else:
+            e = entries[0]
+            tmpdata = {}
+            for s in samples:
+                tmpdata[s] = genome[e[0]][int(e[3])-1:int(e[4])]
+            for i in pos:
+                p = i-int(e[3])
+                for s in samples:
+                    tmpdata[s] = tmpdata[s][:p] + data[g][i][s] + tmpdata[s][p+1:]
+            with open(feat+"/"+g+".fas", "w") as o:
+                for s in samples:
+                    o.write(">"+s+"\n")
+                    if e[6] == '-':
+                        o.write(revcomp(tmpdata[s])+"\n")
+                    else:
                         o.write(tmpdata[s]+"\n")
                 c += 1
-        if blend:
-            for s in samples:
-                o.write(">"+s+"\n")
-                for e in concat:
-                    o.write(e[s])        
-                o.write("\n")
-            c += 1
+
+
     sys.stdout.write("\n {:<13s}done writing {} files to {}\n".format("[vcf2fasta]",c,feat))
 
 def getgene(var, gff):

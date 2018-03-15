@@ -101,7 +101,6 @@ def vcf2fasta(data, gff, genome, feat, blend, samples, phase):
                                 o.write(revcomp(tmpdata[s])+"\n")
                             else:
                                 o.write(tmpdata[s]+"\n")
-                    c += 1
             if blend:
                 for s in samples:
                     o.write(">"+s+"\n")
@@ -130,8 +129,6 @@ def vcf2fasta(data, gff, genome, feat, blend, samples, phase):
                     else:
                         o.write(tmpdata[s]+"\n")
                 c += 1
-
-
     sys.stdout.write("\n {:<13s}done writing {} files to {}\n".format("[vcf2fasta]",c,feat))
 
 def getgene(var, gff):
@@ -176,7 +173,7 @@ def extractvcf(data, var, head, sampstart, samples, phase, gff):
             elif phase == 'unphased':
                 for i in range(len(gt)):
                     nvar = map(lambda x: alleles[x], gt[i].split("/"))
-                    if all([ i == nvar[0] for i in nvar ]):
+                    if all([ nvar[0] == k for k in nvar ]):
                         data[gene][pos][samples[i]] = nvar[0]
                     else:
                         data[gene][pos][samples[i]] = iupac(nvar)
@@ -192,50 +189,58 @@ def extractvcf(data, var, head, sampstart, samples, phase, gff):
 
 def readvcf(file, gff):
     data = {}
+    sys.stdout.write(" {:<13s}reading VCF file ...".format("[readvcf]"))
     if search(".vcf.gz$", file):
         v = gzip.open(file, "r")
     else:
         v = open(file, "r")
-    sys.stdout.write(" {:<13s}loading VCF file ...\n".format("[readvcf]"))
-    lines = v.readlines()
-    v.close()
-    sys.stdout.write(" {:<13s}stripping comment lines ...\n".format("[readvcf]"))
-    lines = filter(lambda x: match('^((?!##).)*$',x), lines)
-    lines = map(lambda x: x.rstrip(), lines)
-    head = lines[0]
-    head = head.split("\t")
-    sampstart = head.index('FORMAT')+1
-    samples = head[sampstart:]
-    sys.stdout.write(" {:<13s}header has {} samples\n".format("[readvcf]",len(samples)))
-    sys.stdout.write(" {:<13s}splitting fields ...\n".format("[readvcf]"))
-    lines = lines[1:]
-    lines = map(lambda x: x.split("\t"), lines)
-    phase = checkphase(lines[0], sampstart)
-    sys.stdout.write(" {:<13s}VCF is phased, splitting into \"a\" and \"b\" haplotypes\n".format("[readvcf]"))
-    sys.stdout.write(" {:<13s}{:<10s} {:<15s} {:<10s} {:<10s}\n".format("[extractvcf]","SNP","CHROM","POS","TIME"))
     c = 0
-    t1 = time.time()
-    for var in lines:
-        data = extractvcf(data, var, head, sampstart, samples, phase, gff)
-        c += 1
-        t2 = time.time()
-        tnow = t2-t1
-        if tnow < 60.0:
-            tnows = "{:.2f}".format(tnow)
-            sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<6s}seconds \r".format("[extractvcf]",c,var[0],var[1],tnows)),
-            sys.stdout.flush()
-        elif  60.0 < tnow < 3600.0:
-            tnows = "{:.2f}".format(tnow/60.0)
-            sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<6s}minutes \r".format("[extractvcf]",c,var[0],var[1],tnows)),
-            sys.stdout.flush()
-        elif 3600.0 < tnow < 86400.0:
-            tnows = "{:.2f}".format(tnow/3600.0)
-            sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<6s}hours \r".format("[extractvcf]",c,var[0],var[1],tnows)),
-            sys.stdout.flush()
-        else:
-            tnows = "{:.2f}".format(tnow/86400.0)
-            sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<6s}days \r".format("[extractvcf]",c,var[0],var[1],tnows)),
-            sys.stdout.flush()
+    for var in v:
+            if match("^##",var):
+                next
+            elif match("^#CHROM",var):
+                head = var.rstrip().split("\t")
+                sampstart = head.index('FORMAT')+1
+                samples = head[sampstart:]
+                sys.stdout.write("\n {:<13s}header has {} samples\n".format("[readvcf]",len(samples)))
+            else:
+                var = var.rstrip().split("\t")
+                c += 1
+                if c == 1:
+                    phase = checkphase(var, sampstart)
+                    if phase == 'phased':
+                        sys.stdout.write(" {:<13s}VCF is {}, splitting into \"a\" and \"b\" haplotypes\n".format("[readvcf]",phase))
+                    elif phase == 'unphased':
+                        sys.stdout.write(" {:<13s}VCF is {}, heterozygotes will be masked with IUPAC ambiguity codes\n".format("[readvcf]",phase))
+                    else:
+                        sys.stdout.write(" {:<13s}VCF ploidy looks {}\n".format("[readvcf]",phase))
+                    sys.stdout.write(" {:<13s}{:<10s} {:<15s} {:<10s} {:<10s} {:<10s}\n".format("[extractvcf]","SNP","CHROM","POS","TIME(T)","TIME(P)"))
+                    t1 = time.time()
+                t2 = time.time()
+                data = extractvcf(data, var, head, sampstart, samples, phase, gff)
+                tpar = time.time()-t2
+                tnow = time.time()-t1
+                if tnow < 60.0:
+                    tnows = "{:.2f}".format(tnow)
+                    tpars = "{:.6f}".format(tpar)
+                    sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<10s} {:<6s} \r".format("[extractvcf]",c,var[0],var[1],tnows+" s",tpars+" s")),
+                    sys.stdout.flush()
+                elif  60.0 < tnow < 3600.0:
+                    tnows = "{:.2f}".format(tnow/60.0)
+                    tpars = "{:.6f}".format(tpar)
+                    sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<10s} {:<6s} \r".format("[extractvcf]",c,var[0],var[1],tnows+" m",tpars+" s")),
+                    sys.stdout.flush()
+                elif 3600.0 < tnow < 86400.0:
+                    tnows = "{:.2f}".format(tnow/3600.0)
+                    tpars = "{:.6f}".format(tpar)
+                    sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<10s} {:<6s} \r".format("[extractvcf]",c,var[0],var[1],tnows+" h",tpars+" s")),
+                    sys.stdout.flush()
+                else:
+                    tnows = "{:.2f}".format(tnow/86400.0)
+                    tpars = "{:.6f}".format(tpar)
+                    sys.stdout.write(" {:<13s}{:<10d} {:<15s} {:<10s} {:<10s} {:<6s} \r".format("[extractvcf]",c,var[0],var[1],tnows+" d",tpars+" s")),
+                    sys.stdout.flush()
+    v.close()
     print ""
     return data,samples,phase
 
@@ -314,9 +319,9 @@ def keyisfound(x, key):
 
 def checkphase(var, ind):
     gt = var[ind].split(":")[0]
-    if search('|', gt):
+    if search('\|', gt):
         return 'phased'
-    elif search('/', gt):
+    elif search('\/', gt):
         return 'unphased'
     else:
         return 'haploid'

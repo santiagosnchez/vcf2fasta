@@ -322,9 +322,9 @@ def readfasta(file):
         ihead = map(lambda i: lines.index(i), filter(lambda k: ">" in k, lines))
         for i in range(len(ihead)):
             if ihead[i] != ihead[-1]:
-                data[lines[ihead[i]][1:]] = ''.join(lines[ihead[i]+1:ihead[i+1]])
+                data[lines[ihead[i]][1:]] = ''.join(lines[ihead[i]+1:ihead[i+1]]).upper()
             else:
-                data[lines[ihead[i]][1:]] = ''.join(lines[ihead[i]+1:])
+                data[lines[ihead[i]][1:]] = ''.join(lines[ihead[i]+1:]).upper()
             c += 1
             sys.stdout.write(" {:<15s}reading FASTA sequence: {}\r".format("[readfasta]",c)),
             sys.stdout.flush()

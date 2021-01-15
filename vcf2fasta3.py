@@ -1,150 +1,290 @@
 #!/usr/bin/env python
-# vcf2fasta.py
+# vcf2fasta
 
 import argparse
 import re
 import sys
+import time
+import collections
 import os
-from string import maketrans
+# test for art
 try:
     import pysam
 except:
     sys.exit("pysam is not installed. Try: pip install pysam")
+# test for art
+try:
+    import art
+except:
+    sys.exit("art is not installed. Try: pip install art")
 
 def main():
+    print(art.text2art("vcf2fasta"))
     # parse arguments
     parser = argparse.ArgumentParser(prog="vcf2fasta.py",
-        version="0.3",
+        #version="0.3",
         formatter_class=argparse.RawTextHelpFormatter,
         description="""
-Converts regions/intervals in the genome into FASTA alignments
-provided a VCF file, a GFF file, and FASTA reference.""",
+        Converts regions/intervals in the genome into FASTA alignments
+        provided a VCF file, a GFF file, and FASTA reference.\n""",
         epilog="""
-All files must be indexed. So before running the code make sure 
-that your reference FASTA file is indexed:
+        All files must be indexed. So before running the code make sure
+        that your reference FASTA file is indexed:
 
-samtools faidx genome.fas
+        samtools faidx genome.fas
 
-BGZIP compress and TABIX index your VCF file:
+        BGZIP compress and TABIX index your VCF file:
 
-bgzip variants.vcf
-tabix variants.vcf.gz
+        bgzip variants.vcf
+        tabix variants.vcf.gz
 
-The GFF file does not need to be indexed.
+        The GFF file does not need to be indexed.
 
-examples:
-python vcf2fasta.py -f genome.fas -v variants.vcf.gz -g intervals.gff -e CDS
-
-""")
+        examples:
+        python vcf2fasta.py -f genome.fas -v variants.vcf.gz -g intervals.gff -e CDS
+        \n""")
     parser.add_argument(
-    '--fasta', '-f', metavar='GENOME', type=str,
+    '--fasta', '-f', metavar='GENOME', type=str, required=True,
     help='FASTA file with the reference genome.')
     parser.add_argument(
     '--vcf', '-v', metavar='VCF', type=str, required=True,
     help='a tabix-indexed VCF file.')
     parser.add_argument(
-    '--gff', '-g', metavar='GFF', type=str,
+    '--gff', '-g', metavar='GFF', type=str, required=True,
     help='GFF file.')
     parser.add_argument(
-    '--feat', '-e', metavar='FEAT', type=str,
+    '--feat', '-e', metavar='FEAT', type=str, required=True,
     help='feature/annotation in the GFF file. (i.e. gene, CDS, intron)')
     parser.add_argument(
-    '--dir', '-d', metavar='DIRECTORY', type=str, default='.',
-    help='output directory. (default: current directory)')
-    #parser.add_argument(
-    #'--blend', '-b', action="store_true", default=False,
-    #help='concatenate GFF entries of FEAT into a single alignment. Useful for CDS. (default: False)')
+    '--blend', '-b', action="store_true", default=False,
+    help='concatenate GFF entries of FEAT into a single alignment. Useful for CDS. (default: False)')
+    parser.add_argument(
+    '--no-uipac', '-nu', action="store_true", default=False,
+    help='selects one allele randomly if heterozygote. (default: False)')
     args = parser.parse_args()
 
     # read GFF file
+    print('Reading VCF file [',args.gff,'] ... ', end='', sep='')
     gff = ReadGFF(args.gff)
+    print('done')
+
     # read variant file and get samples
+    print('Reading VCF file [',args.vcf,'] ... ', end='', sep='')
     vcf = pysam.VariantFile(args.vcf)
-    samples = vcf.fetch().next().samples.keys()
+    # get a list of samples
+    samples = [ x for x,y in next(vcf.fetch()).samples.items() ]
+    print('done')
+
     # read genome reference file
+    print('Reading VCF file [',args.fasta,'] ... ', end='', sep='')
     ref = pysam.FastaFile(args.fasta)
+    print('done')
+
+    # get ploidy
+    ploidy = getPloidy(vcf)
+    print('Ploidy is:', ploidy)
+
+    # output directory and print feature
+    outdir = "vcf2fasta_"+args.feat
+    if args.blend:
+        print('Concatenating all [',args.feat,']')
+    else:
+        print('Writing all [',args.feat,'] separately')
+    print('Setting output directory to:', outdir)
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    else:
+        proceed = input(outdir + "exists. Do you want to proceed? [y|n]: ")
+        if not re.match('[Yy][EEs]*', proceed):
+            print('Exiting ...')
+            sys.exit(parser.print_help())
+
     # get gene keys from GFF
     genes = gff.keys()
-    # create output dir
-    if not os.path.exists(args.path.exists(args.dir))
-        os.mkdir(args.dir)
+    print('Total number of genes found:', len(genes))
+
+    # start counting time
+    t1 = time.time()
+    # start counter
+    feature_counter = 0
+
     for gene in genes:
-        genename = gene+"."+gff[gene][0][3]+"-"+gff[gene][-1][4]
-        o = open(args.dir+"/"+genename+".fas", "w")
-        seq1 = ''
-        seq2 = ''
-        for gffrec in gff[gene]:
-            chrom,start,end,strand = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6]
-            s = ref.fetch(chrom, start, end).upper()
-            s1 = s
-            s2 = s
-            addposcum = 0
-            for rec in vcf.fetch(chrom, start, end):
-                alleles,addpos,refpos = UpdateAllele(rec)
-                s1 = UpdateSeq(rec, alleles[0], addposcum, refpos, start, s1)                         
-                s2 = UpdateSeq(rec, alleles[1], addposcum, refpos, start, s2)
-                addposcum += addpos
-            seq1 += s1
-            seq2 += s2
-        if strand == "-":
-            seq1 = revcomp(seq1)
-            seq2 = revcomp(seq2)
-        i=len(seq1) % 3
-        if i == 0:
-            o.write(">"+genename+"1\n"+seq1+"\n>"+genename+"2\n"+seq2+"\n")
+        feature_counter += 1
+        # genename = gene+"."+gff[gene][0][3]+"-"+gff[gene][-1][4]
+        seqs = collections.defaultdict()
+        sequences = getSequences(gff, gene, args.feat, args.blend, ref, vcf, seqs, ploidy, args.no_uipac, samples)
+        with open(outdir + "/" + gene + ".fas", "w") as out:
+            printFasta(sequences, out)
+        progress = make_progress_bar(feature_counter, len(genes), t1, 70)
+        print("\r", progress[0] % progress[1:], end='', flush=True)
+    print('')
+
+def getSequences(gff, gene, feat, blend, ref, vcf, seqs, ploidy, no_uipac, samples):
+    if ploidy == 1:
+        for sample in samples: seqs[sample] = ''
+        if blend:
+            for gffrec in gff[gene][feat]:
+                #seq = ''
+                #seq2 = ''
+                tmpseqs = seqs.copy()
+                chrom,start,end,strand = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6]
+                refseq = ref.fetch(chrom, start, end).upper()
+                for sample in samples: tmpseqs[sample] = refseq
+                addposcum = 0
+                for rec in vcf.fetch(chrom, start, end):
+                    for sample,variant in rec.samples.items():
+                        alleles,addpos,refpos = UpdateAllele(variant, rec)
+                        tmpseqs[sample] = UpdateSeq(rec, alleles[0], addposcum, refpos, start, tmpseqs[sample])
+                        #s2 = UpdateSeq(rec, alleles[1], addposcum, refpos, start, s2)
+                        addposcum += addpos
+                for sample in samples: seqs[sample] = seqs[sample] + tmpseqs[sample]
+            if strand == "-":
+                for sample in samples: revcomp(seqs[sample])
         else:
-            o.write(">"+genename+"1\n"+seq1[:-i]+"\n>"+genename+"2\n"+seq2[:-i]+"\n")
-        o.close()
-
-def ReadGFF(file):
-    gff = {}
-    with open(file, "r") as f:
-        for line in f:
-            if re.match("^#", line):
-                pass
+            for gffrec in gff[gene][feat]:
+                chrom,start,end,strand = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6]
+                s = ref.fetch(chrom, start, end).upper()
+                s1 = s
+                s2 = s
+                addposcum = 0
+                for rec in vcf.fetch(chrom, start, end):
+                    alleles,addpos,refpos = UpdateAllele(rec)
+                    s1 = UpdateSeq(rec, alleles[0], addposcum, refpos, start, s1)
+                    s2 = UpdateSeq(rec, alleles[1], addposcum, refpos, start, s2)
+                    addposcum += addpos
+                seq1 += s1
+                seq2 += s2
+            if strand == "-":
+                seq1 = revcomp(seq1)
+                seq2 = revcomp(seq2)
+    if ploidy == 2:
+        if phased:
+            pass
+        else:
+            for sample in samples: seqs[sample] = ''
+            if blend:
+                for gffrec in gff[gene][feat]:
+                    #seq = ''
+                    #seq2 = ''
+                    tmpseqs = seqs.copy()
+                    chrom,start,end,strand = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6]
+                    refseq = ref.fetch(chrom, start, end).upper()
+                    for sample in samples: tmpseqs[sample] = refseq
+                    addposcum = 0
+                    for rec in vcf.fetch(chrom, start, end):
+                        for sample,variant in rec.samples.items():
+                            alleles,addpos,refpos = UpdateAllele(variant, rec)
+                            tmpseqs[sample] = UpdateSeq(rec, alleles[0], addposcum, refpos, start, tmpseqs[sample])
+                            #s2 = UpdateSeq(rec, alleles[1], addposcum, refpos, start, s2)
+                            addposcum += addpos
+                    for sample in samples: seqs[sample] = seqs[sample] + tmpseqs[sample]
+                if strand == "-":
+                    for sample in samples: revcomp(seqs[sample])
             else:
-                line = line.rstrip().split("\t")
-                gname = GetGeneName(line[-1])
-                if gff.get(gname):
-                    gff[gname] += [line]
-                else:
-                    gff[gname] = [line]
-    return gff
+                for gffrec in gff[gene][feat]:
+                    chrom,start,end,strand = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6]
+                    s = ref.fetch(chrom, start, end).upper()
+                    s1 = s
+                    s2 = s
+                    addposcum = 0
+                    for rec in vcf.fetch(chrom, start, end):
+                        alleles,addpos,refpos = UpdateAllele(rec)
+                        s1 = UpdateSeq(rec, alleles[0], addposcum, refpos, start, s1)
+                        s2 = UpdateSeq(rec, alleles[1], addposcum, refpos, start, s2)
+                        addposcum += addpos
+                    seq1 += s1
+                    seq2 += s2
+                if strand == "-":
+                    seq1 = revcomp(seq1)
+                    seq2 = revcomp(seq2)
+    return seqs
 
-def GetGeneName(gname):
-    m1 = re.search('\"(.+?)\" *;', gname)
-    m2 = re.search('= *\"(.+?)\" *;', gname)
-    m3 = re.search('= *(.+?) *;', gname)
-    m4 = re.search('^(.+?) *;{0,1}$', gname)
-    if m1:
-        gname = re.sub('\"| *;*$','',m1.group())
-        return gname
-    elif m2:
-        gname = re.sub('= *|\"| *;*$','',m2.group())
-        return gname
-    elif m3:
-        gname = re.sub('.*= *| *;*$','',m3.group())
-        return gname
-    elif m4:
-        gname = re.sub('.*= *| *;*$','',m4.group())
-        return gname
-    else:
-        return gname
-
-def UpdateAllele(vcfrec):
-    allelelen = [ len(x) for x in vcfrec.alleles ]
+def UpdateAllele(vcfrec, rec):
+    allelelen = [ len(x) for x in tuple([rec.ref]) + rec.alts ]
     maxlen = allelelen.index(max(allelelen))
-    alleles2 = tuple([ x + '-' * (allelelen[maxlen]-len(x)) for x in vcfrec.alleles ])
-    return alleles2, abs(allelelen[0]-allelelen[maxlen]), allelelen[0]-1
+    if vcfrec.alleles[0]:
+        alleles = tuple([ x + '-' * (allelelen[maxlen]-len(x)) for x in vcfrec.alleles ])
+    else:
+        alleles = tuple(['?' * allelelen[maxlen]])
+    return alleles, abs(allelelen[0]-allelelen[maxlen]), allelelen[0]-1
 
 def UpdateSeq(vcfrec, allele, addposcum, refpos, start, seq):
     pos = vcfrec.pos-1-start+addposcum
     seq = seq[:pos]+allele+seq[pos+1+refpos:]
     return seq
 
+def printFasta(seqs, out):
+    for head in seqs.keys():
+        out.write(">" + head + "\n" + seqs[head] + "\n")
+
+def getFeature(file):
+    features = collections.defaultdict()
+    with open(file, "r") as f:
+        for line in f:
+            fields = line.rstrip().split("\t")
+            features[fields[2]] = None
+    return list(features.keys())
+
+def getGeneNames(file):
+    geneNames = collections.defaultdict()
+    with open(file, "r") as f:
+        for line in f:
+            fields = line.rstrip().split("\t")
+            last = processGeneName(fields[8])
+            if last.get('Name'):
+                geneNames[last['Name']] = None
+    return list(geneNames.keys())
+
+def processGeneName(lastfield):
+    last = collections.defaultdict()
+    for i in lastfield.split(";"):
+        x = i.split("=")
+        last[re.sub("\"| ","",x[0])] = re.sub("\"| ","",x[1])
+    return last
+
+def ReadGFF(file):
+    geneNames = getGeneNames(file)
+    features  = getFeature(file)
+    gff = collections.defaultdict()
+    for g in geneNames:
+        gff[g] = collections.defaultdict()
+        for f in features:
+            gff[g][f] = []
+    with open(file, "r") as f:
+        for line in f:
+            fields = line.rstrip().split("\t")
+            last = processGeneName(fields[8])
+            if last.get('Name'):
+                gff[last['Name']][fields[2]].append(fields)
+            else:
+                gff[last['Parent']][fields[2]].append(fields)
+            # if last.get('Parent'):
+            #     gff[last['Parent']][fields[2]].append(fields)
+            # elif last.get('Name'):
+            #     gff[last['Name']][fields[2]].append(fields)
+    return gff
+
+def getPloidy(vcf):
+    var = [ y for x,y in next(vcf.fetch()).samples.items() ]
+    p = sum([ len(v.get('GT')) for v in var ]) / len(var)
+    return int(p)
+
 def revcomp(seq):
-    tt = maketrans('ACGT?N','TGCA?N')
+    tt = seq.maketrans('ACGT?N-','TGCA?N-')
     return seq[::-1].translate(tt)
+
+def make_progress_bar(rec, total, t1, width):
+    i = (rec/total * 100) % 100
+    if i != 0:
+        plus = "+" * int(i * (width/100))
+        dots = "." * (width-int(i * width/100))
+    else:
+        plus = "+" * width
+        dots = ""
+        i = 100
+    t2 = time.time()
+    elapsed = t2-t1
+    return "["+plus+dots+"] "+"%5.2f%% %7.2f s", i, elapsed
 
 if __name__ == "__main__":
     main()

@@ -27,7 +27,6 @@ optional arguments:
   --gff GFF, -g GFF     GFF file.
   --feat FEAT, -e FEAT  feature/annotation in the GFF file. (i.e. gene, CDS, intron)
   --blend, -b           concatenate GFF entries of FEAT into a single alignment. Useful for CDS. (default: False)
-  --no-uipac, -nu       selects one allele randomly if heterozygote. (default: False)
 
         All files must be indexed. So before running the code make sure
         that your reference FASTA file is indexed:

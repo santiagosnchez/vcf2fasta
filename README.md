@@ -1,3 +1,50 @@
+# vcf2fasta
+Beta `python3` version now available. Currently, it only works on haploid VCFs only. Working on diploid, phased, and IUPAC outputs.
+
+## Requirements
+* `pysam`
+* `art`
+
+```bash
+pip3 install pysam art
+```
+
+## Options
+Run with `-h` option for more details
+
+```
+usage: vcf2fasta.py [-h] --fasta GENOME --vcf VCF --gff GFF --feat FEAT
+                    [--blend] [--no-uipac]
+
+        Converts regions/intervals in the genome into FASTA alignments
+        provided a VCF file, a GFF file, and FASTA reference.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --fasta GENOME, -f GENOME
+                        FASTA file with the reference genome.
+  --vcf VCF, -v VCF     a tabix-indexed VCF file.
+  --gff GFF, -g GFF     GFF file.
+  --feat FEAT, -e FEAT  feature/annotation in the GFF file. (i.e. gene, CDS, intron)
+  --blend, -b           concatenate GFF entries of FEAT into a single alignment. Useful for CDS. (default: False)
+  --no-uipac, -nu       selects one allele randomly if heterozygote. (default: False)
+
+        All files must be indexed. So before running the code make sure
+        that your reference FASTA file is indexed:
+
+        samtools faidx genome.fas
+
+        BGZIP compress and TABIX index your VCF file:
+
+        bgzip variants.vcf
+        tabix variants.vcf.gz
+
+        The GFF file does not need to be indexed.
+
+        examples:
+        python vcf2fasta.py -f genome.fas -v variants.vcf.gz -g intervals.gff -e CDS
+```
+
 # vcf2fasta.pl
 Converts a VCF file to a FASTA alignment provided a reference genome and a GFF file
 

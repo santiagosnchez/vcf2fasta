@@ -1,3 +1,92 @@
+# vcf2fasta
+
+**Major release. Current version should now work with haploid, diploid, phased, and unphased (IUPAC) outputs.**
+
+vcf2fasta.py is Python program that extracts FASTA alignments from VCF files given a GFF file with feature coordinates and a reference FASTA file.
+
+## Preprocessing
+
+The reference must be indexed using:
+
+```
+samtools faidx ref.fa
+```
+
+And the VCF file should be tabix indexed and compressed:
+
+```
+bgzip my_vcf_file.vcf
+tabix my_vcf_file.vcf.gz
+```
+
+No modification is needed for the GFF file. However, it is important to keep the whole structure of the GFF file, including whole complete gene features. If CDSs are the focus they should be accompanied by it's corresponding gene feature:
+
+* gene
+* CDS
+
+Similarly of the focus are introns:
+
+* gene
+* intron
+
+Or transcripts:
+
+* gene
+* transcript
+
+etc.. Alternatively, all features can left on the GFF. However, the `--feat | -e` argument must be used at all times.
+
+## Requirements
+* `pysam`
+* `art`
+
+```bash
+pip3 install pysam art
+```
+
+## Options
+Run with `-h` option for more details
+
+```
+usage: vcf2fasta.py [-h] --fasta GENOME --vcf VCF --gff GFF --feat FEAT
+                    [--blend]
+
+        Converts regions/intervals in the genome into FASTA alignments
+        provided a VCF file, a GFF file, and FASTA reference.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --fasta GENOME, -f GENOME
+                        FASTA file with the reference genome.
+  --vcf VCF, -v VCF     a tabix-indexed VCF file.
+  --gff GFF, -g GFF     GFF file.
+  --feat FEAT, -e FEAT  feature/annotation in the GFF file. (i.e. gene, CDS, intron)
+  --blend, -b           concatenate GFF entries of FEAT into a single alignment. Useful for CDS. (default: False)
+
+        All files must be indexed. So before running the code make sure
+        that your reference FASTA file is indexed:
+
+        samtools faidx genome.fas
+
+        BGZIP compress and TABIX index your VCF file:
+
+        bgzip variants.vcf
+        tabix variants.vcf.gz
+
+        The GFF file does not need to be indexed.
+
+        examples:
+        python vcf2fasta.py -f genome.fas -v variants.vcf.gz -g intervals.gff -e CDS
+```
+
+If running on CDS use the `--blend | -b` option to concatenate coding sequences. Otherwise it will spit out FASTA alignments for each CDS.
+
+
+# Old instructions for the Perl version
+
+**Note: this script only works with SNPs and not indel variants**
+**Use the Python version for consistency**
+
 # vcf2fasta.pl
 Converts a VCF file to a FASTA alignment provided a reference genome and a GFF file
 
@@ -26,5 +115,3 @@ Use the `-h` flag for more details:
     perl vcf2fasta.pl -f ref.fas -v snps.vcf -g annotation.gff -e CDS
     perl vcf2fasta.pl -f ref.fas -v snps.phased.vcf -g annotation.gff -e CDS --phased
     perl vcf2fasta.pl -f ref.fas -v snps.phased.vcf -g annotation.gff -e CDS --phased --ref
-
-## Note: Working on a Python version...

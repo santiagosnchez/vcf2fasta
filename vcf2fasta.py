@@ -63,7 +63,7 @@ def main():
 
     # read GFF file
     print('Reading VCF file [',args.gff,'] ... ', end='', sep='')
-    gff = ReadGFF(args.gff)
+    gff = filterFeatureInGFF(ReadGFF(args.gff), args.feat)
     print('done')
 
     # read variant file and get samples
@@ -293,7 +293,15 @@ def UpdateSeqIUPAC(alleles, samp, pos, ref_len, seq):
     return seq[:pos] + getIUPAC(alleles[samp]) + seq[pos+ref_len:]
 
 # collapses list into string of IUPAC codes
+### ISSUE
+# produces shorter alignments
+# needs fixing
+###
 def getIUPAC(x):
+    '''
+    Collapses two or more alleles into a single
+    IUPAC string
+    '''
     # first check if data is missing
     if x[0][0] == '?':
         return x[0]
@@ -326,6 +334,8 @@ def getIUPAC(x):
                         iupacd += 'S'
                     elif 'G' in nuc and 'T' in nuc:
                         iupacd += 'K'
+                    else:
+                        iupacd += '?'
                 elif len(nuc) == 3:
                     if 'A' in nuc and 'T' in nuc and 'C':
                         iupacd += 'H'
@@ -335,9 +345,13 @@ def getIUPAC(x):
                         iupacd += 'B'
                     elif 'A' in nuc and 'G' in nuc and 'C':
                         iupacd += 'V'
+                    else:
+                        iupacd += '?'
                 elif len(nuc) == 4:
                     if 'A' in nuc and 'G' in nuc and 'C' and 'T' in nuc:
                         iupacd += 'N'
+                    else:
+                        iupacd += '?'
         return iupacd
 
 # def UpdateAllele(vcfrec, rec):
@@ -355,6 +369,9 @@ def printFasta(seqs, out):
         out.write(">" + head + "\n" + seqs[head] + "\n")
 
 def getFeature(file):
+    '''
+    extracts a list of features from the GFF
+    '''
     features = collections.defaultdict()
     with open(file, "r") as f:
         for line in f:
@@ -363,6 +380,10 @@ def getFeature(file):
     return list(features.keys())
 
 def getGeneNames(file):
+    '''
+    Extracts a list of all gene names in GFF
+    The input is the gff file itself
+    '''
     geneNames = collections.defaultdict()
     with open(file, "r") as f:
         for line in f:
@@ -373,6 +394,11 @@ def getGeneNames(file):
     return list(geneNames.keys())
 
 def processGeneName(lastfield):
+    '''
+    Makes a list of all the annotation fields in the last column [8]
+    delimited by ";"
+    Input is the string of the last field in GFF
+    '''
     last = collections.defaultdict()
     for i in lastfield.split(";"):
         x = i.split("=")
@@ -380,6 +406,10 @@ def processGeneName(lastfield):
     return last
 
 def ReadGFF(file):
+    '''
+    returns a nested dictionary named after every feature name
+    as well as every feature name [3]
+    '''
     geneNames = getGeneNames(file)
     features  = getFeature(file)
     gff = collections.defaultdict()
@@ -400,6 +430,20 @@ def ReadGFF(file):
             # elif last.get('Name'):
             #     gff[last['Name']][fields[2]].append(fields)
     return gff
+
+def filterFeatureInGFF(gff, feat):
+    '''
+    Keep/filters GFF records that include specified feature
+    and returns a new GFF
+    '''
+    filtered_gff = collections.defaultdict()
+    for gene in gff.keys(): filtered_gff[gene] = collections.defaultdict()
+    for gene in gff.keys():
+        if len(gff[gene][feat]) != 0:
+            filtered_gff[gene][feat] = gff[gene][feat]
+        else:
+            _ = filtered_gff.pop(gene)
+    return filtered_gff
 
 def getPloidy(vcf):
     var = [ y for x,y in next(vcf.fetch()).samples.items() ]

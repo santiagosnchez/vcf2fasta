@@ -84,6 +84,13 @@ def main():
     ploidy = getPloidy(vcf)
     print('Ploidy is:', ploidy)
 
+    # are genotypes phased
+    phased = getPhased(vcf)
+    if phased:
+        print('Genotypes are phased')
+    else:
+        print('Genotypes are not phased')
+
     # output directory and print feature
     outdir = "vcf2fasta_"+args.feat
     if args.blend:
@@ -111,15 +118,15 @@ def main():
     for gene in genes:
         feature_counter += 1
         # genename = gene+"."+gff[gene][0][3]+"-"+gff[gene][-1][4]
-        seqs = collections.defaultdict()
-        sequences = getSequences(gff, gene, args.feat, args.blend, ref, vcf, seqs, ploidy, args.no_uipac, samples)
+        sequences = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, args.no_uipac, samples)
         with open(outdir + "/" + gene + ".fas", "w") as out:
             printFasta(sequences, out)
         progress = make_progress_bar(feature_counter, len(genes), t1, 70)
         print("\r", progress[0] % progress[1:], end='', flush=True)
     print('')
 
-def getSequences(gff, gene, feat, blend, ref, vcf, seqs, ploidy, no_uipac, samples):
+def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, no_uipac, samples):
+    seqs = collections.defaultdict()
     if ploidy == 1:
         for sample in samples: seqs[sample] = ''
         if blend:
@@ -141,25 +148,12 @@ def getSequences(gff, gene, feat, blend, ref, vcf, seqs, ploidy, no_uipac, sampl
             if strand == "-":
                 for sample in samples: revcomp(seqs[sample])
         else:
-            for gffrec in gff[gene][feat]:
-                chrom,start,end,strand = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6]
-                s = ref.fetch(chrom, start, end).upper()
-                s1 = s
-                s2 = s
-                addposcum = 0
-                for rec in vcf.fetch(chrom, start, end):
-                    alleles,addpos,refpos = UpdateAllele(rec)
-                    s1 = UpdateSeq(rec, alleles[0], addposcum, refpos, start, s1)
-                    s2 = UpdateSeq(rec, alleles[1], addposcum, refpos, start, s2)
-                    addposcum += addpos
-                seq1 += s1
-                seq2 += s2
-            if strand == "-":
-                seq1 = revcomp(seq1)
-                seq2 = revcomp(seq2)
+            pass
     if ploidy == 2:
         if phased:
-            pass
+            for sample in samples:
+                seqs[sample+"_a"] = ''
+                seqs[sample+"_b"] = ''
         else:
             for sample in samples: seqs[sample] = ''
             if blend:
@@ -199,6 +193,25 @@ def getSequences(gff, gene, feat, blend, ref, vcf, seqs, ploidy, no_uipac, sampl
                     seq2 = revcomp(seq2)
     return seqs
 
+def getAlleles(rec, ploidy):
+    # extract all alleles for a given SNP/var. pos.
+    alleles = { i[0]:i[1].alleles for i in rec.samples.items() }
+    # collapse list into alleles that are segregating and are not missing
+    segregating = list(set(sum([ [ x for x in alleles[i] ] for i in alleles.keys() ], [])))
+    # get the length of the longest allele
+    max_len = max([ len(i) for i in segregating if i is not None ])
+    # make a dictionary of expanded alleles
+    dict_expanded = { i:(i + '-' * (max_len - len(i))) for i in segregating if i is not None }
+    # replace short alleles with expanded alleles for samples without missing data
+    alleles_expanded = { i:[dict_expanded[j] for j in alleles[i]] for i in alleles.keys() if alleles[i][0] is not None }
+    # add one for missing data if any, and incorporate to alleles_expanded dict
+    if None in segregating:
+        dict_expanded[''] = '?' * max_len
+        alleles_missing = { i:[dict_expanded[''] for j in range(ploidy)] for i in alleles.keys() if alleles[i][0] is None }
+        for i in alleles_missing.keys(): alleles_expanded[i] = alleles_missing[i]
+
+
+
 def UpdateAllele(vcfrec, rec):
     allelelen = [ len(x) for x in tuple([rec.ref]) + rec.alts ]
     maxlen = allelelen.index(max(allelelen))
@@ -212,6 +225,7 @@ def UpdateSeq(vcfrec, allele, addposcum, refpos, start, seq):
     pos = vcfrec.pos-1-start+addposcum
     seq = seq[:pos]+allele+seq[pos+1+refpos:]
     return seq
+
 
 def printFasta(seqs, out):
     for head in seqs.keys():
@@ -268,6 +282,11 @@ def getPloidy(vcf):
     var = [ y for x,y in next(vcf.fetch()).samples.items() ]
     p = sum([ len(v.get('GT')) for v in var ]) / len(var)
     return int(p)
+
+def getPhased(vcf):
+    var = [ y for x,y in next(vcf.fetch()).samples.items() ]
+    p = any([ not v.phased for v in var ])
+    return not p
 
 def revcomp(seq):
     tt = seq.maketrans('ACGT?N-','TGCA?N-')

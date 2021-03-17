@@ -162,7 +162,7 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 for sample in seqs.keys(): seqs[sample] = seqs[sample] + tmpseqs[sample]
             # reverse complement sequence if needed
             if strand == "-":
-                for sample in seqs.keys(): revcomp(seqs[sample])
+                for sample in seqs.keys(): seqs[sample] = revcomp(seqs[sample])
         else:
             feat_ind = 0
             for gffrec in gff[gene][feat]:
@@ -191,6 +191,8 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                     # positions are take or are added to the sequence
                     posadd += max_len - ref_len
                 feat_ind += 1
+                if strand == "-":
+                    for sample in seqs.keys(): seqs[featname][sample] = revcomp(seqs[featname][sample])
     else:
         if blend:
             for sample in samples:
@@ -221,7 +223,7 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 for sample in seqs.keys(): seqs[sample] = seqs[sample] + tmpseqs[sample]
             # reverse complement sequence if needed
             if strand == "-":
-                for sample in seqs.keys(): revcomp(seqs[sample])
+                for sample in seqs.keys(): seqs[sample] = revcomp(seqs[sample])
         else:
             feat_ind = 0
             for gffrec in gff[gene][feat]:
@@ -249,6 +251,8 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                     # positions are take or are added to the sequence
                     posadd += max_len - ref_len
                 feat_ind += 1
+                if strand == "-":
+                    for sample in seqs.keys(): seqs[featname][sample] = revcomp(seqs[featname][sample])
     return seqs
 
 def getAlleles(rec, ploidy):

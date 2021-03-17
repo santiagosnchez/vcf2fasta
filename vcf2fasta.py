@@ -84,17 +84,14 @@ def main():
 
     # are genotypes phased
     phased = getPhased(vcf)
-<<<<<<< HEAD
     if phased:
         print('Genotypes are phased')
     else:
         print('Genotypes are not phased')
-=======
     if not phased:
         print('No phased genotypes found on first variant. Treating as \"unphased\"')
     else:
         print('Phased genotypes found on first variant. Treating as \"phased\"')
->>>>>>> 86de61e21c98bdc5cce9c413971bb99ab4b4552c
 
     # output directory and print feature
     outdir = "vcf2fasta_"+args.feat
@@ -123,11 +120,9 @@ def main():
     for gene in genes:
         feature_counter += 1
         # genename = gene+"."+gff[gene][0][3]+"-"+gff[gene][-1][4]
-<<<<<<< HEAD
         sequences = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, args.no_uipac, samples)
         with open(outdir + "/" + gene + ".fas", "w") as out:
             printFasta(sequences, out)
-=======
         sequences = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples)
         if args.blend:
             with open(outdir + "/" + gene + ".fas", "w") as out:
@@ -136,21 +131,18 @@ def main():
             for featnm in sequences.keys():
                 with open(outdir + "/" + featnm + ".fas", "w") as out:
                     printFasta(sequences[featnm], out)
->>>>>>> 86de61e21c98bdc5cce9c413971bb99ab4b4552c
         progress = make_progress_bar(feature_counter, len(genes), t1, 70)
         print("\r", progress[0] % progress[1:], end='', flush=True)
     print('')
 
-<<<<<<< HEAD
 def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, no_uipac, samples):
     seqs = collections.defaultdict()
     if ploidy == 1:
         for sample in samples: seqs[sample] = ''
-=======
+
 def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
     seqs = collections.defaultdict()
     if phased:
->>>>>>> 86de61e21c98bdc5cce9c413971bb99ab4b4552c
         if blend:
             for sample in samples:
                 for i in range(ploidy):
@@ -184,14 +176,12 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
             if strand == "-":
                 for sample in seqs.keys(): revcomp(seqs[sample])
         else:
-<<<<<<< HEAD
             pass
     if ploidy == 2:
         if phased:
             for sample in samples:
                 seqs[sample+"_a"] = ''
                 seqs[sample+"_b"] = ''
-=======
             feat_ind = 0
             for gffrec in gff[gene][feat]:
                 featname = gene+"_"+feat+"_"+str(feat_ind)
@@ -250,7 +240,6 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
             # reverse complement sequence if needed
             if strand == "-":
                 for sample in seqs.keys(): revcomp(seqs[sample])
->>>>>>> 86de61e21c98bdc5cce9c413971bb99ab4b4552c
         else:
             feat_ind = 0
             for gffrec in gff[gene][feat]:
@@ -296,7 +285,6 @@ def getAlleles(rec, ploidy):
         dict_expanded[''] = '?' * max_len
         alleles_missing = { i:[dict_expanded[''] for j in range(ploidy)] for i in alleles.keys() if alleles[i][0] is None }
         for i in alleles_missing.keys(): alleles_expanded[i] = alleles_missing[i]
-<<<<<<< HEAD
 
 
 
@@ -305,7 +293,6 @@ def UpdateAllele(vcfrec, rec):
     maxlen = allelelen.index(max(allelelen))
     if vcfrec.alleles[0]:
         alleles = tuple([ x + '-' * (allelelen[maxlen]-len(x)) for x in vcfrec.alleles ])
-=======
     return alleles_expanded, max_len
 
 # takes a genotype dict from getAlleles and turns it into
@@ -334,7 +321,6 @@ def getIUPAC(x):
         return x[0]
     elif len(list(set(x))) == 1:
         return x[0]
->>>>>>> 86de61e21c98bdc5cce9c413971bb99ab4b4552c
     else:
         iupacd = ''
         # loop through positions

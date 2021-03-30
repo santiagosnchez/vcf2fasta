@@ -19,10 +19,10 @@ bgzip my_vcf_file.vcf
 tabix my_vcf_file.vcf.gz
 ```
 
-No modification is needed for the GFF file. However, it is important to keep the whole structure of the GFF file, including whole complete gene features. If CDSs are the focus they should be accompanied by it's corresponding gene feature:
+No modification is needed for the GFF file. However, it is important to keep the whole structure of the GFF file, including complete gene features. If CDSs are the focus they should be accompanied by it's corresponding gene or parent feature:
 
 * gene
-* CDS
+* CDS/exon
 
 Similarly of the focus are introns:
 
@@ -34,7 +34,7 @@ Or transcripts:
 * gene
 * transcript
 
-etc.. Alternatively, all features can left on the GFF. However, the `--feat | -e` argument must be used at all times.
+etc.. Alternatively, all features can be left on the GFF. However, the `--feat | -e` argument must be used at all times.
 
 ## Requirements
 * `pysam`

@@ -105,8 +105,13 @@ def main():
             sys.exit(parser.print_help())
 
     # get gene keys from GFF
-    genes = gff.keys()
+    genes = list(gff.keys())
     print('Total number of genes found:', len(genes))
+
+    # check multiple records per feat
+    single = [ len(gff[i]) == 1 for i in genes ]
+    if all(single):
+        args.blend = True
 
     # start counting time
     t1 = time.time()
@@ -114,7 +119,6 @@ def main():
     feature_counter = 0
 
     for gene in genes:
-        feature_counter += 1
         # genename = gene+"."+gff[gene][0][3]+"-"+gff[gene][-1][4]
         sequences = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples)
         if args.blend:
@@ -124,6 +128,7 @@ def main():
             for featnm in sequences.keys():
                 with open(outdir + "/" + featnm + ".fas", "w") as out:
                     printFasta(sequences[featnm], out)
+        feature_counter += 1
         progress = make_progress_bar(feature_counter, len(genes), t1, 70)
         print("\r", progress[0] % progress[1:], end='', flush=True)
     print('')

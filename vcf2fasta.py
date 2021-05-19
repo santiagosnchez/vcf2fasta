@@ -62,7 +62,7 @@ def main():
     args = parser.parse_args()
 
     # read GFF file
-    print('Reading VCF file [',args.gff,'] ... ', end='', sep='')
+    print('Reading GFF file [',args.gff,'] ... ', end='', sep='')
     gff = filterFeatureInGFF(ReadGFF(args.gff), args.feat)
     print('done')
 
@@ -74,7 +74,7 @@ def main():
     print('done')
 
     # read genome reference file
-    print('Reading VCF file [',args.fasta,'] ... ', end='', sep='')
+    print('Reading FASTA reference file [',args.fasta,'] ... ', end='', sep='')
     ref = pysam.FastaFile(args.fasta)
     print('done')
 

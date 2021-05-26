@@ -19,7 +19,7 @@ bgzip my_vcf_file.vcf
 tabix my_vcf_file.vcf.gz
 ```
 
-No modification is needed for the GFF file. However, it is important to keep the whole structure of the GFF file, including complete gene features. If CDSs are the focus they should be accompanied by it's corresponding gene or parent feature:
+For most GFF3 formats, no modification is needed for the GFF file if the structure follow [Ensembl](https://m.ensembl.org/info/website/upload/gff3.html). However, it is important to keep the whole structure of the GFF file, including complete gene features. If CDSs are the focus they should be accompanied by it's corresponding gene or parent feature:
 
 * gene
 * CDS/exon
@@ -35,6 +35,8 @@ Or transcripts:
 * transcript
 
 etc.. Alternatively, all features can be left on the GFF. However, the `--feat | -e` argument must be used at all times.
+
+**If multiple transcript isoforms are on the GFF, all of them will be fetched.**
 
 ## Requirements
 * `pysam`

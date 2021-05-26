@@ -380,8 +380,9 @@ def getFeature(file):
     features = collections.defaultdict()
     with open(file, "r") as f:
         for line in f:
-            fields = line.rstrip().split("\t")
-            features[fields[2]] = None
+            if line[0] != "#":
+                fields = line.rstrip().split("\t")
+                features[fields[2]] = None
     return list(features.keys())
 
 def getGeneNames(file):
@@ -392,8 +393,9 @@ def getGeneNames(file):
     geneNames = collections.defaultdict()
     with open(file, "r") as f:
         for line in f:
-            fields = line.rstrip().split("\t")
-            last = processGeneName(fields[8])
+            if line[0] != "#":
+                fields = line.rstrip().split("\t")
+                last = processGeneName(fields[8])
             if last.get('Name'):
                 geneNames[last['Name']] = None
     return list(geneNames.keys())
@@ -424,16 +426,17 @@ def ReadGFF(file):
             gff[g][f] = []
     with open(file, "r") as f:
         for line in f:
-            fields = line.rstrip().split("\t")
-            last = processGeneName(fields[8])
-            if last.get('Name'):
-                gff[last['Name']][fields[2]].append(fields)
-            else:
-                gff[last['Parent']][fields[2]].append(fields)
-            # if last.get('Parent'):
-            #     gff[last['Parent']][fields[2]].append(fields)
-            # elif last.get('Name'):
-            #     gff[last['Name']][fields[2]].append(fields)
+            if line[0] != "#":
+                fields = line.rstrip().split("\t")
+                last = processGeneName(fields[8])
+                if last.get('Name'):
+                    gff[last['Name']][fields[2]].append(fields)
+                else:
+                    gff[last['Parent']][fields[2]].append(fields)
+                # if last.get('Parent'):
+                #     gff[last['Parent']][fields[2]].append(fields)
+                # elif last.get('Name'):
+                #     gff[last['Name']][fields[2]].append(fields)
     return gff
 
 def filterFeatureInGFF(gff, feat):

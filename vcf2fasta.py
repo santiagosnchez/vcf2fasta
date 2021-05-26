@@ -397,6 +397,10 @@ def getGeneNames(file):
             last = processGeneName(fields[8])
             if last.get('Name'):
                 geneNames[last['Name']] = None
+            elif last.get('Parent'):
+                geneNames[last['Parent']] = None
+            elif last.get('ID'):
+                geneNames[last['ID']] = None
     return list(geneNames.keys())
 
 def processGeneName(lastfield):
@@ -430,8 +434,10 @@ def ReadGFF(file):
             last = processGeneName(fields[8])
             if last.get('Name'):
                 gff[last['Name']][fields[2]].append(fields)
-            else:
+            elif:
                 gff[last['Parent']][fields[2]].append(fields)
+            else:
+                gff[last['ID']][fields[2]].append(fields)
             # if last.get('Parent'):
             #     gff[last['Parent']][fields[2]].append(fields)
             # elif last.get('Name'):

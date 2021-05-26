@@ -393,9 +393,8 @@ def getGeneNames(file):
     geneNames = collections.defaultdict()
     with open(file, "r") as f:
         for line in f:
-            if line[0] != "#":
-                fields = line.rstrip().split("\t")
-                last = processGeneName(fields[8])
+            fields = line.rstrip().split("\t")
+            last = processGeneName(fields[8])
             if last.get('Name'):
                 geneNames[last['Name']] = None
     return list(geneNames.keys())
@@ -408,8 +407,9 @@ def processGeneName(lastfield):
     '''
     last = collections.defaultdict()
     for i in lastfield.split(";"):
-        x = i.split("=")
-        last[re.sub("\"| ","",x[0])] = re.sub("\"| ","",x[1])
+        if "=" in i:
+            x = i.split("=")
+            last[re.sub("\"| ","",x[0])] = re.sub("\"| ","",x[1])
     return last
 
 def ReadGFF(file):
@@ -426,17 +426,16 @@ def ReadGFF(file):
             gff[g][f] = []
     with open(file, "r") as f:
         for line in f:
-            if line[0] != "#":
-                fields = line.rstrip().split("\t")
-                last = processGeneName(fields[8])
-                if last.get('Name'):
-                    gff[last['Name']][fields[2]].append(fields)
-                else:
-                    gff[last['Parent']][fields[2]].append(fields)
-                # if last.get('Parent'):
-                #     gff[last['Parent']][fields[2]].append(fields)
-                # elif last.get('Name'):
-                #     gff[last['Name']][fields[2]].append(fields)
+            fields = line.rstrip().split("\t")
+            last = processGeneName(fields[8])
+            if last.get('Name'):
+                gff[last['Name']][fields[2]].append(fields)
+            else:
+                gff[last['Parent']][fields[2]].append(fields)
+            # if last.get('Parent'):
+            #     gff[last['Parent']][fields[2]].append(fields)
+            # elif last.get('Name'):
+            #     gff[last['Name']][fields[2]].append(fields)
     return gff
 
 def filterFeatureInGFF(gff, feat):
@@ -457,11 +456,6 @@ def getPloidy(vcf):
     var = [ y for x,y in next(vcf.fetch()).samples.items() ]
     p = [ len(v.get('GT')) for v in var if v.get('GT')[0] is not None ]
     return p[0]
-
-def getPhased(vcf):
-    var = [ y for x,y in next(vcf.fetch()).samples.items() ]
-    p = any([ v.phased for v in var if v.get('GT')[0] is not None ])
-    return p
 
 def getPhased(vcf):
     var = [ y for x,y in next(vcf.fetch()).samples.items() ]

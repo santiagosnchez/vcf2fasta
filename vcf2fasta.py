@@ -434,7 +434,7 @@ def ReadGFF(file):
             last = processGeneName(fields[8])
             if last.get('Name'):
                 gff[last['Name']][fields[2]].append(fields)
-            elif:
+            elif last.get('Parent'):
                 gff[last['Parent']][fields[2]].append(fields)
             else:
                 gff[last['ID']][fields[2]].append(fields)

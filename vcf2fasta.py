@@ -149,9 +149,9 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 refseq = ref.fetch(chrom, start, end).upper()
                 # fix length according to codon start position (column 8 in GFF)
                 if cp != ".":
-                    if strand == "-":
+                    if strand == "-" and int(cp) != 0:
                         refseq = refseq[:-int(cp)]
-                    elif strand == "+":
+                    elif strand == "+" and int(cp) != 0:
                         refseq = refseq[int(cp):]
                 # propagate reference sequence to all samples
                 for sample in seqs.keys(): tmpseqs[sample] = refseq

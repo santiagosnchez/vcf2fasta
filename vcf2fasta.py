@@ -144,9 +144,15 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 # get a new copy of seqs for every feature
                 tmpseqs = collections.defaultdict()
                 # extract relevant info from GFF
-                chrom,start,end,strand = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6]
+                chrom,start,end,strand,cp = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
                 # extract sequence from reference
                 refseq = ref.fetch(chrom, start, end).upper()
+                # fix length according to codon start position (column 8 in GFF)
+                if cp != ".":
+                    if strand == "-":
+                        refseq = refseq[:-int(cp)]
+                    elif strand == "+":
+                        refseq = refseq[int(cp):]
                 # propagate reference sequence to all samples
                 for sample in seqs.keys(): tmpseqs[sample] = refseq
                 # initialize posiitive or negative postions to extend

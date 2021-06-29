@@ -58,6 +58,9 @@ def main():
     parser.add_argument(
     '--blend', '-b', action="store_true", default=False,
     help='concatenate GFF entries of FEAT into a single alignment. Useful for CDS. (default: False)')
+    parser.add_argument(
+    '--inframe', '-i', action="store_true", default=False,
+    help='force the first codon of the sequence to be inframe. Useful for incomplete CDS. (default: False)')
 
     args = parser.parse_args()
 
@@ -120,10 +123,20 @@ def main():
 
     for gene in genes:
         # genename = gene+"."+gff[gene][0][3]+"-"+gff[gene][-1][4]
-        sequences = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples)
+        sequences,strand,codon_start = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples)
         if args.blend:
-            with open(outdir + "/" + gene + ".fas", "w") as out:
-                printFasta(sequences, out)
+            if args.inframe and codon_start[0] != ".":
+                if strand == "+" and codon_start[0] != "0":
+                    for key in sequences.keys():
+                        sequences[key] = sequences[key][int(codon_start[0]):]
+                elif strand == "-" and codon_start[-1] != "0":
+                    for key in sequences.keys():
+                        sequences[key] = sequences[key][int(codon_start[-1]):]
+                with open(outdir + "/" + gene + ".fas", "w") as out:
+                    printFasta(sequences, out)
+            else:
+                with open(outdir + "/" + gene + ".fas", "w") as out:
+                    printFasta(sequences, out)
         else:
             for featnm in sequences.keys():
                 with open(outdir + "/" + featnm + ".fas", "w") as out:
@@ -135,6 +148,7 @@ def main():
 
 def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
     seqs = collections.defaultdict()
+    codon_start = []
     if phased:
         if blend:
             for sample in samples:
@@ -144,15 +158,11 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 # get a new copy of seqs for every feature
                 tmpseqs = collections.defaultdict()
                 # extract relevant info from GFF
-                chrom,start,end,strand,cp = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
+                chrom,start,end,strand,cs = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
+                # add cs to codon_start
+                codon_start.append(cs)
                 # extract sequence from reference
                 refseq = ref.fetch(chrom, start, end).upper()
-                # fix length according to codon start position (column 8 in GFF)
-                if cp != ".":
-                    if strand == "-" and int(cp) != 0:
-                        refseq = refseq[:-int(cp)]
-                    elif strand == "+" and int(cp) != 0:
-                        refseq = refseq[int(cp):]
                 # propagate reference sequence to all samples
                 for sample in seqs.keys(): tmpseqs[sample] = refseq
                 # initialize posiitive or negative postions to extend
@@ -180,7 +190,9 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 featname = gene+"_"+feat+"_"+str(feat_ind)
                 seqs[featname] = collections.defaultdict()
                 # extract relevant info from GFF
-                chrom,start,end,strand = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6]
+                chrom,start,end,strand,cs = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
+                # add cs to codon_start
+                codon_start.append(cs)
                 # extract sequence from reference
                 refseq = ref.fetch(chrom, start, end).upper()
                 for sample in samples:
@@ -212,7 +224,9 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 # get a new copy of seqs for every feature
                 tmpseqs = seqs.copy()
                 # extract relevant info from GFF
-                chrom,start,end,strand = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6]
+                chrom,start,end,strand,cs = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
+                # add cs to codon_start
+                codon_start.append(cs)
                 # extract sequence from reference
                 refseq = ref.fetch(chrom, start, end).upper()
                 # propagate reference sequence to all samples
@@ -241,7 +255,9 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 featname = gene+"_"+feat+"_"+str(feat_ind)
                 seqs[featname] = collections.defaultdict()
                 # extract relevant info from GFF
-                chrom,start,end,strand = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6]
+                chrom,start,end,strand,cs = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
+                # add cs to codon_start
+                codon_start.append(cs)
                 # extract sequence from reference
                 refseq = ref.fetch(chrom, start, end).upper()
                 for sample in samples:
@@ -264,7 +280,7 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 feat_ind += 1
                 if strand == "-":
                     for sample in seqs.keys(): seqs[featname][sample] = revcomp(seqs[featname][sample])
-    return seqs
+    return seqs,strand,codon_start
 
 def getAlleles(rec, ploidy):
     # extract all alleles for a given SNP/var. pos.

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # vcf2fasta
 
 import argparse
@@ -61,6 +61,9 @@ def main():
     parser.add_argument(
     '--inframe', '-i', action="store_true", default=False,
     help='force the first codon of the sequence to be inframe. Useful for incomplete CDS. (default: False)')
+    parser.add_argument(
+    '--out', '-o', metavar='OUT', type=str, default="vcf2fasta",
+    help='provide a name for the output directory (optional)')
 
     args = parser.parse_args()
 
@@ -93,7 +96,7 @@ def main():
         print('Phased genotypes found on first variant. Treating as \"phased\"')
 
     # output directory and print feature
-    outdir = "vcf2fasta_"+args.feat
+    outdir = args.out+"_"+args.feat
     if args.blend:
         print('Concatenating all [',args.feat,']')
     else:

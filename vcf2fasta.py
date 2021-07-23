@@ -67,6 +67,9 @@ def main():
     parser.add_argument(
     '--addref', '-r', action="store_true", default=False,
     help='include the reference sequence in the FASTA alignment (default: False)')
+    parser.add_argument(
+    '--skip', '-s', action="store_true", default=False,
+    help='skips features without variants (default: False)')
 
     args = parser.parse_args()
 
@@ -108,199 +111,134 @@ def main():
     if not os.path.exists(outdir):
         os.mkdir(outdir)
     else:
-        proceed = input(outdir + " exists. Do you want to proceed? [y|n]: ")
+        proceed = input(outdir + " exists. Files will me replaced. Do you want to proceed? [y|n]: ")
         if not re.match('[Yy][EEs]*', proceed):
             print('Exiting ...')
             sys.exit(parser.print_help())
+
 
     # get gene keys from GFF
     genes = list(gff.keys())
     print('Total number of genes found:', len(genes))
 
     # check multiple records per feat
-    single = [ len(gff[i]) == 1 for i in genes ]
+    single = [ len(gff[i][args.feat]) == 1 for i in genes ]
     if all(single):
         args.blend = True
+        print("Found all genes with single records. Treating as --blend")
 
     # start counting time
     t1 = time.time()
     # start counter
     feature_counter = 0
+    # count skipped genes
+    skipped = 0
 
     for gene in genes:
-        # genename = gene+"."+gff[gene][0][3]+"-"+gff[gene][-1][4]
-        sequences,strand,codon_start = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples, args.addref)
-        if args.blend:
-            if args.inframe and codon_start[0] != ".":
-                if strand == "+" and codon_start[0] != "0":
-                    for key in sequences.keys():
-                        sequences[key] = sequences[key][int(codon_start[0]):]
-                elif strand == "-" and codon_start[-1] != "0":
-                    for key in sequences.keys():
-                        sequences[key] = sequences[key][int(codon_start[-1]):]
-                with open(outdir + "/" + gene + ".fas", "w") as out:
-                    printFasta(sequences, out)
-            else:
-                with open(outdir + "/" + gene + ".fas", "w") as out:
-                    printFasta(sequences, out)
-        else:
-            for featnm in sequences.keys():
-                with open(outdir + "/" + featnm + ".fas", "w") as out:
-                    printFasta(sequences[featnm], out)
+        #sequences,strand,codon_start = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples, args.addref)
+        sequences,varsites,codon_start,strand = getSequences(gff, gene, args.feat, args.blend, args.inframe, ref, vcf, ploidy, phased, samples, args.addref)
+        if args.skip and varsites != 0:
+            skipped += 1
+            for featname in sequences.keys():
+                with open(outdir + "/" + featname + ".fas", "w") as out:
+                    printFasta(sequences[featname], out)
+        elif not args.skip:
+            for featname in sequences.keys():
+                with open(outdir + "/" + featname + ".fas", "w") as out:
+                    printFasta(sequences[featname], out)
         feature_counter += 1
         progress = make_progress_bar(feature_counter, len(genes), t1, 70)
         print("\r", progress[0] % progress[1:], end='', flush=True)
     print('')
+    if args.skip:
+        print("Skipped", skipped, "genes with no variants")
 
-def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples, addref):
+# this function gets everything processed to produce a set
+# of sequences in a dictionary, along with other info
+def getSequences(gff, gene, feat, blend, inframe, ref, vcf, ploidy, phased, samples, addref):
     seqs = collections.defaultdict()
-    codon_start = []
+    # prep sequence dictionary
+    if blend:
+        seqs[gene] = collections.defaultdict()
+    else:
+        feat_ind = 0
+        for gffrec in gff[gene][feat]:
+            featname = gene+"_"+feat+"_"+str(feat_ind)
+            seqs[featname] = collections.defaultdict()
+            feat_ind += 1
     if phased:
-        if blend:
+        for key in seqs.keys():
             for sample in samples:
                 for i in range(ploidy):
-                    seqs[sample + "_" + str(i)] = ''
+                    seqs[key][sample + "_" + str(i)] = ''
             # add a dummy reference sequence if requested
             if addref:
-                seqs['REF_0'] = ''
-            for gffrec in gff[gene][feat]:
-                # get a new copy of seqs for every feature
-                tmpseqs = collections.defaultdict()
-                # extract relevant info from GFF
-                chrom,start,end,strand,cs = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
-                # add cs to codon_start
-                codon_start.append(cs)
-                # extract sequence from reference
-                refseq = ref.fetch(chrom, start, end).upper()
-                # propagate reference sequence to all samples
-                for sample in seqs.keys(): tmpseqs[sample] = refseq
-                # initialize posiitive or negative postions to extend
-                # in case of indels
-                posadd = 0
-                for rec in vcf.fetch(chrom, start, end):
-                    # get seq position of variant
-                    pos = rec.pos - start - 1 + posadd
-                    # get a dict of extended alleles, including indels
-                    alleles,max_len = getAlleles(rec, ploidy, addref)
-                    alleles = makePhased(alleles) # make them phased
-                    ref_len = len(rec.ref)
-                    for sample in alleles.keys():
-                        tmpseqs[sample] = UpdateSeqPhased(alleles, sample, pos, ref_len, tmpseqs[sample])
-                    # this is the cumulative number of positions to add if
-                    # positions are take or are added to the sequence
-                    posadd += max_len - ref_len
-                for sample in seqs.keys(): seqs[sample] = seqs[sample] + tmpseqs[sample]
-            # reverse complement sequence if needed
-            if strand == "-":
-                for sample in seqs.keys(): seqs[sample] = revcomp(seqs[sample])
-        else:
-            feat_ind = 0
-            for gffrec in gff[gene][feat]:
-                featname = gene+"_"+feat+"_"+str(feat_ind)
-                seqs[featname] = collections.defaultdict()
-                # extract relevant info from GFF
-                chrom,start,end,strand,cs = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
-                # add cs to codon_start
-                codon_start.append(cs)
-                # extract sequence from reference
-                refseq = ref.fetch(chrom, start, end).upper()
-                for sample in samples:
-                    for i in range(ploidy):
-                        seqs[featname][sample + "_" + str(i)] = refseq
-                # add a dummy reference sequence if requested
-                if addref:
-                    seqs['REF_0'] = ''
-                # initialize posiitive or negative postions to extend
-                # in case of indels
-                posadd = 0
-                for rec in vcf.fetch(chrom, start, end):
-                    # get seq position of variant
-                    pos = rec.pos - start - 1 + posadd
-                    # get a dict of extended alleles, including indels
-                    alleles,max_len = getAlleles(rec, ploidy, addref)
-                    alleles = makePhased(alleles) # make them phased
-                    ref_len = len(rec.ref)
-                    for sample in alleles.keys():
-                        seqs[featname][sample] = UpdateSeqPhased(alleles, sample, pos, ref_len, seqs[featname][sample])
-                    # this is the cumulative number of positions to add if
-                    # positions are take or are added to the sequence
-                    posadd += max_len - ref_len
-                feat_ind += 1
-                if strand == "-":
-                    for sample in seqs.keys(): seqs[featname][sample] = revcomp(seqs[featname][sample])
+                seqs[key]['REF_0'] = ''
     else:
-        if blend:
+        for key in seqs.keys():
             for sample in samples:
-                seqs[sample] = ''
+                seqs[key][sample] = ''
             # add a dummy reference sequence if requested
             if addref:
-                seqs['REF'] = ''
-            for gffrec in gff[gene][feat]:
-                # get a new copy of seqs for every feature
-                tmpseqs = seqs.copy()
-                # extract relevant info from GFF
-                chrom,start,end,strand,cs = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
-                # add cs to codon_start
-                codon_start.append(cs)
-                # extract sequence from reference
-                refseq = ref.fetch(chrom, start, end).upper()
-                # propagate reference sequence to all samples
-                for sample in seqs.keys(): tmpseqs[sample] = refseq
-                # initialize posiitive or negative postions to extend
-                # in case of indels
-                posadd = 0
-                for rec in vcf.fetch(chrom, start, end):
-                    # get seq position of variant
-                    pos = rec.pos - start - 1 + posadd
-                    # get a dict of extended alleles, including indels
-                    alleles,max_len = getAlleles(rec, ploidy, addref)
-                    ref_len = len(rec.ref)
-                    for sample in alleles.keys():
-                        tmpseqs[sample] = UpdateSeqIUPAC(alleles, sample, pos, ref_len, tmpseqs[sample])
-                    # this is the cumulative number of positions to add if
-                    # positions are take or are added to the sequence
-                    posadd += max_len - ref_len
-                for sample in seqs.keys(): seqs[sample] = seqs[sample] + tmpseqs[sample]
-            # reverse complement sequence if needed
-            if strand == "-":
-                for sample in seqs.keys(): seqs[sample] = revcomp(seqs[sample])
-        else:
-            feat_ind = 0
-            for gffrec in gff[gene][feat]:
-                featname = gene+"_"+feat+"_"+str(feat_ind)
-                seqs[featname] = collections.defaultdict()
-                # extract relevant info from GFF
-                chrom,start,end,strand,cs = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
-                # add cs to codon_start
-                codon_start.append(cs)
-                # extract sequence from reference
-                refseq = ref.fetch(chrom, start, end).upper()
-                for sample in samples:
-                    for i in range(ploidy):
-                        seqs[featname][sample + "_" + str(i)] = refseq
-                # add a dummy reference sequence if requested
-                if addref:
-                    seqs['REF_0'] = ''
-                # initialize posiitive or negative postions to extend
-                # in case of indels
-                posadd = 0
-                for rec in vcf.fetch(chrom, start, end):
-                    # get seq position of variant
-                    pos = rec.pos - start - 1 + posadd
-                    # get a dict of extended alleles, including indels
-                    alleles,max_len = getAlleles(rec, ploidy, addref)
-                    ref_len = len(rec.ref)
-                    for sample in alleles.keys():
-                        seqs[featname][sample] = UpdateSeqIUPAC(alleles, sample, pos, ref_len, seqs[featname][sample])
-                    # this is the cumulative number of positions to add if
-                    # positions are take or are added to the sequence
-                    posadd += max_len - ref_len
-                feat_ind += 1
-                if strand == "-":
-                    for sample in seqs.keys(): seqs[featname][sample] = revcomp(seqs[featname][sample])
-    return seqs,strand,codon_start
+                seqs[key]['REF'] = ''
+    # initial values before looping through VCF slice
+    varsites = 0
+    feat_ind = 0
+    featname = gene
+    codon_start = collections.defaultdict(list)
+    for gffrec in gff[gene][feat]:
+        if not blend:
+            featname = gene+"_"+feat+"_"+str(feat_ind)
+            feat_ind += 1
+        # get a new copy of seqs for every feature
+        tmpseqs = collections.defaultdict()
+        # extract relevant info from GFF
+        chrom,start,end,strand,cs = gffrec[0],int(gffrec[3])-1,int(gffrec[4]),gffrec[6],gffrec[7]
+        # add cs to codon_start
+        codon_start[featname].append(cs)
+        # extract sequence from reference
+        refseq = ref.fetch(chrom, start, end).upper()
+        # propagate reference sequence to all samples
+        for sample in seqs[featname].keys(): tmpseqs[sample] = refseq
+        # initialize posiitive or negative postions to extend
+        # in case of indels
+        posadd = 0
+        for rec in vcf.fetch(chrom, start, end):
+            # count variants within feature
+            varsites += 1
+            # get seq position of variant
+            pos = rec.pos - start - 1 + posadd
+            # get a dict of extended alleles, including indels
+            alleles,max_len = getAlleles(rec, ploidy, phased, addref)
+            ref_len = len(rec.ref)
+            for sample in alleles.keys():
+                tmpseqs[sample] = UpdateSeq(alleles, sample, pos, ref_len, tmpseqs[sample])
+            # this is the cumulative number of positions to add if
+            # positions are take or are added to the sequence
+            posadd += max_len - ref_len
+        for sample in seqs[featname].keys(): seqs[featname][sample] = seqs[featname][sample] + tmpseqs[sample]
+    # reverse complement sequence if needed
+    if strand == "-":
+        for sample in seqs[featname].keys(): seqs[featname][sample] = revcomp(seqs[featname][sample])
+    # adjust if inframe is on
+    if inframe:
+        if blend and codon_start[featname][0] != ".":
+            if strand == "+" and codon_start[featname][0] != "0":
+                for key in seqs[featname].keys():
+                    seqs[featname][key] = seqs[featname][key][int(codon_start[featname][0]):]
+            elif strand == "-" and codon_start[featname][-1] != "0":
+                for key in seqs[featname].keys():
+                    seqs[featname][key] = seqs[featname][key][int(codon_start[featname][-1]):]
+        elif not blend:
+            for featname in seqs.keys():
+                for key in seqs[featname].keys():
+                    seqs[featname][key] = seqs[featname][key][int(codon_start[featname][0]):]
+    return seqs,varsites,codon_start,strand
 
-def getAlleles(rec, ploidy, addref):
+# main algorithm of vcf2fasta
+# extracts alleles for each sample and expands them if indels
+# deals with both phased and unphased data
+def getAlleles(rec, ploidy, phased, addref):
     # extract all alleles for a given SNP/var. pos.
     alleles = { i[0]:i[1].alleles for i in rec.samples.items() }
     # collapse list into alleles that are segregating and are not missing
@@ -322,6 +260,10 @@ def getAlleles(rec, ploidy, addref):
         dict_expanded[''] = '?' * max_len
         alleles_missing = { i:[dict_expanded[''] for j in range(ploidy)] for i in alleles.keys() if alleles[i][0] is None }
         for i in alleles_missing.keys(): alleles_expanded[i] = alleles_missing[i]
+    if phased:
+        alleles_expanded = makePhased(alleles_expanded) # make them phased
+    else:
+        alleles_expanded = {key:getIUPAC(alleles_expanded[key]) for key in alleles_expanded.keys()}
     return alleles_expanded, max_len
 
 # takes a genotype dict from getAlleles and turns it into
@@ -334,18 +276,17 @@ def makePhased(alleles):
             alleles_phased[samp + "_" + str(i)] = alleles[samp][i]
     return alleles_phased
 
-# function to update sequence dict based on alleles
-# works on phased and haploid data
-def UpdateSeqPhased(alleles, samp, pos, ref_len, seq):
+# function to update sequence dict based on alleles or collapsed alleles
+def UpdateSeq(alleles, samp, pos, ref_len, seq):
     return seq[:pos] + alleles[samp] + seq[pos+ref_len:]
 
 # same as UpdateSeqPhased but returns a collapsed genotype using IUPAC codes
-def UpdateSeqIUPAC(alleles, samp, pos, ref_len, seq):
-    return seq[:pos] + getIUPAC(alleles[samp]) + seq[pos+ref_len:]
+# def UpdateSeqIUPAC(alleles, samp, pos, ref_len, seq):
+#     return seq[:pos] + getIUPAC(alleles[samp]) + seq[pos+ref_len:]
 
 # collapses list into string of IUPAC codes
 ### ISSUE
-# produces shorter alignments
+# produces shorter alignments sometimes
 # needs fixing
 ###
 def getIUPAC(x):
@@ -405,17 +346,11 @@ def getIUPAC(x):
                         iupacd += '?'
         return iupacd
 
-# def UpdateAllele(vcfrec, rec):
-#     allelelen = [ len(x) for x in tuple([rec.ref]) + rec.alts ]
-#     maxlen = allelelen.index(max(allelelen))
-#     if vcfrec.alleles[0]:
-#         alleles = tuple([ x + '-' * (allelelen[maxlen]-len(x)) for x in vcfrec.alleles ])
-#     else:
-#         alleles = tuple(['?' * allelelen[maxlen]])
-#     return alleles, abs(allelelen[0]-allelelen[maxlen]), allelelen[0]-1
-
 
 def printFasta(seqs, out):
+    '''
+    writes FASTA to file
+    '''
     for head in seqs.keys():
         out.write(">" + head + "\n" + seqs[head] + "\n")
 

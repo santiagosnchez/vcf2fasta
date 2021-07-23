@@ -1,3 +1,5 @@
-1	.	gene	10	100	.	+	0	ID=gene1;Name=g1
+1	.	gene	10	1000	.	+	.	ID=gene1;Name=g1
 1	.	CDS	10	100	.	+	0	ID=exon1;Parent=g1
 1	.	CDS	500	1000	.	+	0	ID=exon2;Parent=g1
+2	.	gene	12	200	.	-	.	ID=gene2;Name=g2
+2	.	CDS	12	200	.	-	.	ID=exon2;Parent=g2

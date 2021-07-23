@@ -64,6 +64,9 @@ def main():
     parser.add_argument(
     '--out', '-o', metavar='OUT', type=str, default="vcf2fasta",
     help='provide a name for the output directory (optional)')
+    parser.add_argument(
+    '--addref', '-r', action="store_true", default=False,
+    help='include the reference sequence in the FASTA alignment (default: False)')
 
     args = parser.parse_args()
 
@@ -126,7 +129,7 @@ def main():
 
     for gene in genes:
         # genename = gene+"."+gff[gene][0][3]+"-"+gff[gene][-1][4]
-        sequences,strand,codon_start = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples)
+        sequences,strand,codon_start = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples, args.addref)
         if args.blend:
             if args.inframe and codon_start[0] != ".":
                 if strand == "+" and codon_start[0] != "0":
@@ -149,7 +152,7 @@ def main():
         print("\r", progress[0] % progress[1:], end='', flush=True)
     print('')
 
-def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
+def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples, addref):
     seqs = collections.defaultdict()
     codon_start = []
     if phased:
@@ -157,6 +160,9 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
             for sample in samples:
                 for i in range(ploidy):
                     seqs[sample + "_" + str(i)] = ''
+            # add a dummy reference sequence if requested
+            if addref:
+                seqs['REF_0'] = ''
             for gffrec in gff[gene][feat]:
                 # get a new copy of seqs for every feature
                 tmpseqs = collections.defaultdict()
@@ -175,7 +181,7 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                     # get seq position of variant
                     pos = rec.pos - start - 1 + posadd
                     # get a dict of extended alleles, including indels
-                    alleles,max_len = getAlleles(rec, ploidy)
+                    alleles,max_len = getAlleles(rec, ploidy, addref)
                     alleles = makePhased(alleles) # make them phased
                     ref_len = len(rec.ref)
                     for sample in alleles.keys():
@@ -201,6 +207,9 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 for sample in samples:
                     for i in range(ploidy):
                         seqs[featname][sample + "_" + str(i)] = refseq
+                # add a dummy reference sequence if requested
+                if addref:
+                    seqs['REF_0'] = ''
                 # initialize posiitive or negative postions to extend
                 # in case of indels
                 posadd = 0
@@ -208,7 +217,7 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                     # get seq position of variant
                     pos = rec.pos - start - 1 + posadd
                     # get a dict of extended alleles, including indels
-                    alleles,max_len = getAlleles(rec, ploidy)
+                    alleles,max_len = getAlleles(rec, ploidy, addref)
                     alleles = makePhased(alleles) # make them phased
                     ref_len = len(rec.ref)
                     for sample in alleles.keys():
@@ -223,6 +232,9 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
         if blend:
             for sample in samples:
                 seqs[sample] = ''
+            # add a dummy reference sequence if requested
+            if addref:
+                seqs['REF'] = ''
             for gffrec in gff[gene][feat]:
                 # get a new copy of seqs for every feature
                 tmpseqs = seqs.copy()
@@ -241,7 +253,7 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                     # get seq position of variant
                     pos = rec.pos - start - 1 + posadd
                     # get a dict of extended alleles, including indels
-                    alleles,max_len = getAlleles(rec, ploidy)
+                    alleles,max_len = getAlleles(rec, ploidy, addref)
                     ref_len = len(rec.ref)
                     for sample in alleles.keys():
                         tmpseqs[sample] = UpdateSeqIUPAC(alleles, sample, pos, ref_len, tmpseqs[sample])
@@ -266,6 +278,9 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                 for sample in samples:
                     for i in range(ploidy):
                         seqs[featname][sample + "_" + str(i)] = refseq
+                # add a dummy reference sequence if requested
+                if addref:
+                    seqs['REF_0'] = ''
                 # initialize posiitive or negative postions to extend
                 # in case of indels
                 posadd = 0
@@ -273,7 +288,7 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                     # get seq position of variant
                     pos = rec.pos - start - 1 + posadd
                     # get a dict of extended alleles, including indels
-                    alleles,max_len = getAlleles(rec, ploidy)
+                    alleles,max_len = getAlleles(rec, ploidy, addref)
                     ref_len = len(rec.ref)
                     for sample in alleles.keys():
                         seqs[featname][sample] = UpdateSeqIUPAC(alleles, sample, pos, ref_len, seqs[featname][sample])
@@ -285,17 +300,23 @@ def getSequences(gff, gene, feat, blend, ref, vcf, ploidy, phased, samples):
                     for sample in seqs.keys(): seqs[featname][sample] = revcomp(seqs[featname][sample])
     return seqs,strand,codon_start
 
-def getAlleles(rec, ploidy):
+def getAlleles(rec, ploidy, addref):
     # extract all alleles for a given SNP/var. pos.
     alleles = { i[0]:i[1].alleles for i in rec.samples.items() }
     # collapse list into alleles that are segregating and are not missing
     segregating = list(set(sum([ [ x for x in alleles[i] ] for i in alleles.keys() ], [])))
+    # add ref allele if addref is true
+    if addref:
+        segregating = list(set(segregating+[rec.ref]))
     # get the length of the longest allele
     max_len = max([ len(i) for i in segregating if i is not None ])
     # make a dictionary of expanded alleles
     dict_expanded = { i:(i + '-' * (max_len - len(i))) for i in segregating if i is not None }
     # replace short alleles with expanded alleles for samples without missing data
     alleles_expanded = { i:[dict_expanded[j] for j in alleles[i]] for i in alleles.keys() if alleles[i][0] is not None }
+    # add ref allele if addref is true
+    if addref:
+        alleles_expanded['REF'] = [dict_expanded[rec.ref]]
     # add one for missing data if any, and incorporate to alleles_expanded dict
     if None in segregating:
         dict_expanded[''] = '?' * max_len
@@ -333,7 +354,7 @@ def getIUPAC(x):
     IUPAC string
     '''
     # first check if data is missing
-    if x[0][0] == '?':
+    if len(x) == 1 or x[0][0] == '?':
         return x[0]
     elif len(list(set(x))) == 1:
         return x[0]

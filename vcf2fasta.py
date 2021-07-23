@@ -132,13 +132,13 @@ def main():
     # start counter
     feature_counter = 0
     # count skipped genes
-    skipped = 0
+    withdata = 0
 
     for gene in genes:
         #sequences,strand,codon_start = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples, args.addref)
         sequences,varsites,codon_start,strand = getSequences(gff, gene, args.feat, args.blend, args.inframe, ref, vcf, ploidy, phased, samples, args.addref)
         if args.skip and varsites != 0:
-            skipped += 1
+            withdata += 1
             for featname in sequences.keys():
                 with open(outdir + "/" + featname + ".fas", "w") as out:
                     printFasta(sequences[featname], out)
@@ -151,7 +151,7 @@ def main():
         print("\r", progress[0] % progress[1:], end='', flush=True)
     print('')
     if args.skip:
-        print("Skipped", skipped, "genes with no variants")
+        print("Skipped", feature_counter-withdata, "genes with no variants")
 
 # this function gets everything processed to produce a set
 # of sequences in a dictionary, along with other info

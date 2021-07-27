@@ -51,7 +51,7 @@ Run with `-h` option for more details
 
 ```
 usage: vcf2fasta.py [-h] --fasta GENOME --vcf VCF --gff GFF --feat FEAT
-                    [--blend]
+                    [--blend] [--inframe] [--out OUT] [--addref] [--skip]
 
         Converts regions/intervals in the genome into FASTA alignments
         provided a VCF file, a GFF file, and FASTA reference.
@@ -64,6 +64,10 @@ optional arguments:
   --gff GFF, -g GFF     GFF file.
   --feat FEAT, -e FEAT  feature/annotation in the GFF file. (i.e. gene, CDS, intron)
   --blend, -b           concatenate GFF entries of FEAT into a single alignment. Useful for CDS. (default: False)
+  --inframe, -i         force the first codon of the sequence to be inframe. Useful for incomplete CDS. (default: False)
+  --out OUT, -o OUT     provide a name for the output directory (optional)
+  --addref, -r          include the reference sequence in the FASTA alignment (default: False)
+  --skip, -s            skips features without variants (default: False)
 
         All files must be indexed. So before running the code make sure
         that your reference FASTA file is indexed:

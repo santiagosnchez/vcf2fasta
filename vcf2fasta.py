@@ -249,9 +249,6 @@ def getSequences(gff, gene, feat, blend, inframe, ref, vcf, ploidy, phased, samp
                     seqs[featname][key] = seqs[featname][key][int(codon_start[featname][0]):]
     if trans:
         for sample in seqs[featname].keys(): seqs[featname][sample] = get_protein(seqs[featname][sample])
-    #debug2
-    print(seqs)
-    sys.exit()
     return seqs,varsites,codon_start,strand
 
 # main algorithm of vcf2fasta

@@ -26,7 +26,7 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter,
         description="""
         Converts regions/intervals in the genome into FASTA alignments
-        provided a VCF file, a GFF file, and FASTA reference.\n""",
+        provided a VCF file, a GFF/GTF file, and FASTA reference.\n""",
         epilog="""
         All files must be indexed. So before running the code make sure
         that your reference FASTA file is indexed:
@@ -38,7 +38,7 @@ def main():
         bgzip variants.vcf
         tabix variants.vcf.gz
 
-        The GFF file does not need to be indexed.
+        The GFF/GTF file does not need to be indexed.
 
         examples:
         python vcf2fasta.py -f genome.fas -v variants.vcf.gz -g intervals.gff -e CDS
@@ -50,8 +50,8 @@ def main():
     '--vcf', '-v', metavar='VCF', type=str, required=True,
     help='a tabix-indexed VCF file.')
     parser.add_argument(
-    '--gff', '-g', metavar='GFF', type=str, required=True,
-    help='GFF file.')
+    '--gff', '-g', metavar='GFF/GTF', type=str, required=True,
+    help='GFF or GTF file.')
     parser.add_argument(
     '--feat', '-e', metavar='FEAT', type=str, required=True,
     help='feature/annotation in the GFF file. (i.e. gene, CDS, intron)')
@@ -104,6 +104,15 @@ def main():
     else:
         print('Phased genotypes found on first variant. Treating as \"phased\"')
 
+    # translate
+    if args.trans:
+        if not args.feat == "CDS" or not args.feat == "exon":
+            print('--trans option can only be used in combination with --feat CDS or --feat exon')
+            args.trans = False
+        if not args.blend:
+            print('--blend needed for --trans. Turnin on.')
+            args.blend = True
+
     # output directory and print feature
     outdir = args.out+"_"+args.feat
     if args.blend:
@@ -139,7 +148,7 @@ def main():
 
     for gene in genes:
         #sequences,strand,codon_start = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples, args.addref)
-        sequences,varsites,codon_start,strand = getSequences(gff, gene, args.feat, args.blend, args.inframe, ref, vcf, ploidy, phased, samples, args.addref)
+        sequences,varsites,codon_start,strand = getSequences(gff, gene, args.feat, args.blend, args.inframe, ref, vcf, ploidy, phased, samples, args.addref, args.trans)
         if args.skip and varsites != 0:
             withdata += 1
             for featname in sequences.keys():
@@ -158,7 +167,7 @@ def main():
 
 # this function gets everything processed to produce a set
 # of sequences in a dictionary, along with other info
-def getSequences(gff, gene, feat, blend, inframe, ref, vcf, ploidy, phased, samples, addref):
+def getSequences(gff, gene, feat, blend, inframe, ref, vcf, ploidy, phased, samples, addref, trans):
     seqs = collections.defaultdict()
     # prep sequence dictionary
     if blend:
@@ -236,6 +245,8 @@ def getSequences(gff, gene, feat, blend, inframe, ref, vcf, ploidy, phased, samp
             for featname in seqs.keys():
                 for key in seqs[featname].keys():
                     seqs[featname][key] = seqs[featname][key][int(codon_start[featname][0]):]
+    if args.trans:
+        for sample in seqs[featname].keys(): seqs[featname][sample] = get_protein(seqs[featname][sample])
     return seqs,varsites,codon_start,strand
 
 # main algorithm of vcf2fasta
@@ -451,7 +462,7 @@ def ReadGFF(file):
             for line in f:
                 if line[0] != "#":
                     fields = line.rstrip().split("\t")
-                    last = processGeneName(fields[8])
+                    last = processGeneNameGFF(fields[8])
                     if last.get('Name'):
                         gff[last['Name']][fields[2]].append(fields)
                     elif last.get('Parent'):
@@ -466,15 +477,11 @@ def ReadGFF(file):
             for line in f:
                 if line[0] != "#":
                     fields = line.rstrip().split("\t")
-                    last = processGeneName(fields[8])
+                    last = processGeneNameGTF(fields[8])
                     if last.get('transcript_id'):
-                        geneNames[last['transcript_id']][fields[2]].append(fields)
+                        gff[last['transcript_id']][fields[2]].append(fields)
                     elif last.get('gene_id'):
-                        geneNames[last['gene_id']][fields[2]].append(fields)
-                    if last.get('Name'):
-                        gff[last['Name']][fields[2]].append(fields)
-                    elif last.get('Parent'):
-                        gff[last['Parent']][fields[2]].append(fields)
+                        gff[last['gene_id']][fields[2]].append(fields)
     return gff
 
 def filterFeatureInGFF(gff, feat):
@@ -504,6 +511,22 @@ def getPhased(vcf):
 def revcomp(seq):
     tt = seq.maketrans('ACGT?N-','TGCA?N-')
     return seq[::-1].translate(tt)
+
+def translate_universal(cod):
+    gc = {
+     'AAA': 'K', 'ACA': 'T', 'AGA': 'R', 'ATA': 'I', 'CAA': 'Q', 'CCA': 'P', 'CGA': 'R', 'CTA': 'L', 'GAA': 'E', 'GCA': 'A', 'GGA': 'G', 'GTA': 'V', 'TAA': '*', 'TCA': 'S', 'TGA': '*', 'TTA': 'L',
+     'AAC': 'N', 'ACC': 'T', 'AGC': 'S', 'ATC': 'I', 'CAC': 'H', 'CCC': 'P', 'CGC': 'R', 'CTC': 'L', 'GAC': 'D', 'GCC': 'A', 'GGC': 'G', 'GTC': 'V', 'TAC': 'Y', 'TCC': 'S', 'TGC': 'C', 'TTC': 'F',
+     'AAG': 'K', 'ACG': 'T', 'AGG': 'R', 'ATG': 'M', 'CAG': 'Q', 'CCG': 'P', 'CGG': 'R', 'CTG': 'L', 'GAG': 'E', 'GCG': 'A', 'GGG': 'G', 'GTG': 'V', 'TAG': '*', 'TCG': 'S', 'TGG': 'W', 'TTG': 'L',
+     'AAT': 'N', 'ACT': 'T', 'AGT': 'S', 'ATT': 'I', 'CAT': 'H', 'CCT': 'P', 'CGT': 'R', 'CTT': 'L', 'GAT': 'D', 'GCT': 'A', 'GGT': 'G', 'GTT': 'V', 'TAT': 'Y', 'TCT': 'S', 'TGT': 'C', 'TTT': 'F'
+     }
+    if gc.get(cod):
+        return gc[cod]
+    else:
+        return "X"
+
+def get_protein(seq):
+    prot = ''.join([ translate_universal(seq[i:(i+3)]) for i in range(0,len(seq),3) ])
+    return prot
 
 def make_progress_bar(rec, total, t1, width):
     i = (rec/total * 100) % 100

@@ -248,7 +248,7 @@ def getSequences(gff, gene, feat, blend, inframe, ref, vcf, ploidy, phased, samp
     if trans:
         for sample in seqs[featname].keys(): seqs[featname][sample] = get_protein(seqs[featname][sample])
     #debug2
-    print(seqs[featname]["VUH"])
+    print(seqs[featname]["VU1"])
     sys.exit()
     return seqs,varsites,codon_start,strand
 

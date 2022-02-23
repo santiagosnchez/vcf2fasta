@@ -127,7 +127,9 @@ def main():
         if not re.match('[Yy][EEs]*', proceed):
             print('Exiting ...')
             sys.exit(parser.print_help())
-
+        else:
+            os.rmdir(outdir)
+            os.mkdir(outdir)
 
     # get gene keys from GFF
     genes = list(gff.keys())

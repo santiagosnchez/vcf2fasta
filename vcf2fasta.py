@@ -26,7 +26,7 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter,
         description="""
         Converts regions/intervals in the genome into FASTA alignments
-        provided a VCF file, a GFF file, and FASTA reference.\n""",
+        provided a VCF file, a GFF/GTF file, and FASTA reference.\n""",
         epilog="""
         All files must be indexed. So before running the code make sure
         that your reference FASTA file is indexed:
@@ -38,7 +38,7 @@ def main():
         bgzip variants.vcf
         tabix variants.vcf.gz
 
-        The GFF file does not need to be indexed.
+        The GFF/GTF file does not need to be indexed.
 
         examples:
         python vcf2fasta.py -f genome.fas -v variants.vcf.gz -g intervals.gff -e CDS
@@ -50,8 +50,8 @@ def main():
     '--vcf', '-v', metavar='VCF', type=str, required=True,
     help='a tabix-indexed VCF file.')
     parser.add_argument(
-    '--gff', '-g', metavar='GFF', type=str, required=True,
-    help='GFF file.')
+    '--gff', '-g', metavar='GFF/GTF', type=str, required=True,
+    help='GFF/GTF file.')
     parser.add_argument(
     '--feat', '-e', metavar='FEAT', type=str, required=True,
     help='feature/annotation in the GFF file. (i.e. gene, CDS, intron)')
@@ -366,25 +366,37 @@ def getFeature(file):
                 features[fields[2]] = None
     return list(features.keys())
 
-def getGeneNames(file):
+def getGeneNames(file, format):
     '''
-    Extracts a list of all gene names in GFF
-    The input is the gff file itself
+    Extracts a list of all gene names in GFF/GTF
+    The input is the gff/gtf file itself
     '''
     geneNames = collections.defaultdict()
     with open(file, "r") as f:
-        for line in f:
-            fields = line.rstrip().split("\t")
-            last = processGeneName(fields[8])
-            if last.get('Name'):
-                geneNames[last['Name']] = None
-            elif last.get('Parent'):
-                geneNames[last['Parent']] = None
-            elif last.get('ID'):
-                geneNames[last['ID']] = None
+        if format == "gff":
+            for line in f:
+                if line[0] != "#":
+                    fields = line.rstrip().split("\t")
+                    last = processGeneNameGFF(fields[8])
+                    if format == "GFF":
+                        if last.get('Name'):
+                            geneNames[last['Name']] = None
+                        elif last.get('Parent'):
+                            geneNames[last['Parent']] = None
+                        elif last.get('ID'):
+                            geneNames[last['ID']] = None
+        elif format == "gtf":
+            for line in f:
+                if line[0] != "#":
+                    fields = line.rstrip().split("\t")
+                    last = processGeneNameGTF(fields[8])
+                    if last.get('transcript_id'):
+                        geneNames[last['transcript_id']] = None
+                    elif last.get('gene_id'):
+                        geneNames[last['gene_id']] = None
     return list(geneNames.keys())
 
-def processGeneName(lastfield):
+def processGeneNameGFF(lastfield):
     '''
     Makes a list of all the annotation fields in the last column [8]
     delimited by ";"
@@ -397,12 +409,34 @@ def processGeneName(lastfield):
             last[re.sub("\"| ","",x[0])] = re.sub("\"| ","",x[1])
     return last
 
+def processGeneNameGTF(lastfield):
+    '''
+    Makes a list of all the annotation fields in the last column [8]
+    delimited by ";"
+    Input is the string of the last field in GFF
+    '''
+    last = collections.defaultdict()
+    for i in lastfield.split(";"):
+        if " " in i:
+            x = i.split(" ")
+            last[x[0]] = re.sub("\"| ","",x[1])
+    return last
+
 def ReadGFF(file):
     '''
     returns a nested dictionary named after every feature name
     as well as every feature name [3]
     '''
-    geneNames = getGeneNames(file)
+    # find out if GTF or GFF
+    if file.split('.')[-1].lower() == "gff" or file.split('.')[-1].lower() == "gff3":
+        format = "gff"
+    elif file.split('.')[-1].lower() == "gtf":
+        format = "gtf"
+    else:
+        print('Cannot figure out GFF/GTF format. File should end with .gff or .gtf')
+        sys.exit(parser.print_help())
+    # get gene names
+    geneNames = getGeneNames(file, format)
     features  = getFeature(file)
     gff = collections.defaultdict()
     for g in geneNames:
@@ -410,19 +444,30 @@ def ReadGFF(file):
         for f in features:
             gff[g][f] = []
     with open(file, "r") as f:
-        for line in f:
-            fields = line.rstrip().split("\t")
-            last = processGeneName(fields[8])
-            if last.get('Name'):
-                gff[last['Name']][fields[2]].append(fields)
-            elif last.get('Parent'):
-                gff[last['Parent']][fields[2]].append(fields)
-            else:
-                gff[last['ID']][fields[2]].append(fields)
-            # if last.get('Parent'):
-            #     gff[last['Parent']][fields[2]].append(fields)
-            # elif last.get('Name'):
-            #     gff[last['Name']][fields[2]].append(fields)
+        if format == "gff":
+            for line in f:
+                if line[0] != "#":
+                    fields = line.rstrip().split("\t")
+                    last = processGeneNameGFF(fields[8])
+                    if last.get('Name'):
+                        gff[last['Name']][fields[2]].append(fields)
+                    elif last.get('Parent'):
+                        gff[last['Parent']][fields[2]].append(fields)
+                    else:
+                        gff[last['ID']][fields[2]].append(fields)
+                    # if last.get('Parent'):
+                    #     gff[last['Parent']][fields[2]].append(fields)
+                    # elif last.get('Name'):
+                    #     gff[last['Name']][fields[2]].append(fields)
+        elif format == "gtf":
+            for line in f:
+                if line[0] != "#":
+                    fields = line.rstrip().split("\t")
+                    last = processGeneNameGTF(fields[8])
+                    if last.get('transcript_id'):
+                        gff[last['transcript_id']][fields[2]].append(fields)
+                    elif last.get('gene_id'):
+                        gff[last['gene_id']][fields[2]].append(fields)
     return gff
 
 def filterFeatureInGFF(gff, feat):

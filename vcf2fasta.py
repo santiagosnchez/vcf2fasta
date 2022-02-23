@@ -70,6 +70,9 @@ def main():
     parser.add_argument(
     '--skip', '-s', action="store_true", default=False,
     help='skips features without variants (default: False)')
+    parser.add_argument(
+    '--trans', '-t', action="store_true", default=False,
+    help='translates CDS to amino acids using the standard genetic code (default: False)')
 
     args = parser.parse_args()
 
@@ -356,7 +359,7 @@ def printFasta(seqs, out):
 
 def getFeature(file):
     '''
-    extracts a list of features from the GFF
+    extracts a list of features from the GFF/GTF
     '''
     features = collections.defaultdict()
     with open(file, "r") as f:
@@ -366,25 +369,31 @@ def getFeature(file):
                 features[fields[2]] = None
     return list(features.keys())
 
-def getGeneNames(file):
+def getGeneNames(file, format):
     '''
-    Extracts a list of all gene names in GFF
-    The input is the gff file itself
+    Extracts a list of all gene names in GFF/GTF
+    The input is the gff/gtf file itself
     '''
     geneNames = collections.defaultdict()
     with open(file, "r") as f:
         for line in f:
             fields = line.rstrip().split("\t")
-            last = processGeneName(fields[8])
-            if last.get('Name'):
-                geneNames[last['Name']] = None
-            elif last.get('Parent'):
-                geneNames[last['Parent']] = None
-            elif last.get('ID'):
-                geneNames[last['ID']] = None
+            last = processGeneName(fields[8], format)
+            if format == "GFF":
+                if last.get('Name'):
+                    geneNames[last['Name']] = None
+                elif last.get('Parent'):
+                    geneNames[last['Parent']] = None
+                elif last.get('ID'):
+                    geneNames[last['ID']] = None
+            elif format == "GTF":
+                if last.get('transcript_id'):
+                    geneNames[last['transcript_id']] = None
+                elif last.get('gene_id'):
+                    geneNames[last['gene_id']] = None
     return list(geneNames.keys())
 
-def processGeneName(lastfield):
+def processGeneNameGFF(lastfield):
     '''
     Makes a list of all the annotation fields in the last column [8]
     delimited by ";"
@@ -395,6 +404,19 @@ def processGeneName(lastfield):
         if "=" in i:
             x = i.split("=")
             last[re.sub("\"| ","",x[0])] = re.sub("\"| ","",x[1])
+    return last
+
+def processGeneNameGTF(lastfield):
+    '''
+    Makes a list of all the annotation fields in the last column [8]
+    delimited by ";"
+    Input is the string of the last field in GFF
+    '''
+    last = collections.defaultdict()
+    for i in lastfield.split(";"):
+        if " " in i:
+            x = i.split(" ")
+            last[x[0]] = re.sub("\"| ","",x[1])
     return last
 
 def ReadGFF(file):

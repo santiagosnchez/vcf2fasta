@@ -146,10 +146,6 @@ def main():
     # count skipped genes
     withdata = 0
 
-    # debug
-    print(args)
-    sys.exit()
-
     for gene in genes:
         #sequences,strand,codon_start = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples, args.addref)
         sequences,varsites,codon_start,strand = getSequences(gff, gene, args.feat, args.blend, args.inframe, ref, vcf, ploidy, phased, samples, args.addref, args.trans)
@@ -251,6 +247,9 @@ def getSequences(gff, gene, feat, blend, inframe, ref, vcf, ploidy, phased, samp
                     seqs[featname][key] = seqs[featname][key][int(codon_start[featname][0]):]
     if trans:
         for sample in seqs[featname].keys(): seqs[featname][sample] = get_protein(seqs[featname][sample])
+    #debug2
+    print(seqs[featname]["VUH"])
+    sys.exit()
     return seqs,varsites,codon_start,strand
 
 # main algorithm of vcf2fasta

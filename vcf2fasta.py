@@ -106,7 +106,7 @@ def main():
 
     # translate
     if args.trans:
-        if not args.feat == "CDS" or not args.feat == "exon":
+        if not (args.feat == "CDS" or args.feat == "exon"):
             print('--trans option can only be used in combination with --feat CDS or --feat exon')
             args.trans = False
         if not args.blend:

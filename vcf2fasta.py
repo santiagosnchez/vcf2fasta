@@ -245,7 +245,7 @@ def getSequences(gff, gene, feat, blend, inframe, ref, vcf, ploidy, phased, samp
             for featname in seqs.keys():
                 for key in seqs[featname].keys():
                     seqs[featname][key] = seqs[featname][key][int(codon_start[featname][0]):]
-    if args.trans:
+    if trans:
         for sample in seqs[featname].keys(): seqs[featname][sample] = get_protein(seqs[featname][sample])
     return seqs,varsites,codon_start,strand
 

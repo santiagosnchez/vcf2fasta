@@ -146,6 +146,10 @@ def main():
     # count skipped genes
     withdata = 0
 
+    # debug
+    print(args)
+    sys.exit()
+
     for gene in genes:
         #sequences,strand,codon_start = getSequences(gff, gene, args.feat, args.blend, ref, vcf, ploidy, phased, samples, args.addref)
         sequences,varsites,codon_start,strand = getSequences(gff, gene, args.feat, args.blend, args.inframe, ref, vcf, ploidy, phased, samples, args.addref, args.trans)

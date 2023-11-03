@@ -378,13 +378,12 @@ def getGeneNames(file, format):
                 if line[0] != "#":
                     fields = line.rstrip().split("\t")
                     last = processGeneNameGFF(fields[8])
-                    if format == "GFF":
-                        if last.get('Name'):
-                            geneNames[last['Name']] = None
-                        elif last.get('Parent'):
-                            geneNames[last['Parent']] = None
-                        elif last.get('ID'):
-                            geneNames[last['ID']] = None
+                    if last.get('Name'):
+                        geneNames[last['Name']] = None
+                    elif last.get('Parent'):
+                        geneNames[last['Parent']] = None
+                    elif last.get('ID'):
+                        geneNames[last['ID']] = None
         elif format == "gtf":
             for line in f:
                 if line[0] != "#":

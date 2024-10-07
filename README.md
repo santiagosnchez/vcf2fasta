@@ -1,5 +1,7 @@
 # vcf2fasta
 
+> Note that this repo is *no longer maintained*.
+
 **Major release. Current version should now work with haploid, diploid, phased, and unphased (IUPAC) outputs.**
 
 vcf2fasta.py is Python program that extracts FASTA alignments from VCF files given a GFF file with feature coordinates and a reference FASTA file.

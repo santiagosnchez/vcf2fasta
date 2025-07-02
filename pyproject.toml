@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vcf2fasta"
+version = "0.1.0"
+description = "A package to convert VCF files to FASTA format."
+authors = [{ name = "Santiago Sanchez", email = "santiago.sanchez@gmail.com" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+keywords = ["vcf", "fasta", "bioinformatics", "genomics"]
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pysam",
+    "art",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.flake8]
+max-line-length = 88
+
+[project.scripts]
+vcf2fasta = "v2f.cli:main"
+
+[project.urls]
+"Homepage" = "https://github.com/santiagosnchez/vcf2fasta"
+"Repository" = "https://github.com/santiagosnchez/vcf2fasta"

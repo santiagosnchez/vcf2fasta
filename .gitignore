@@ -1,3 +1,6 @@
 .DS_Store
+__pycache__
 vcf2fasta_*
-v2f/__pycache__
+vcftofasta.egg-info
+dist/*
+

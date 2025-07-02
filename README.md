@@ -1,5 +1,7 @@
 # vcf2fasta
 
+> **this package is not actively maintained**
+
 ## Overview
 `vcf2fasta` is a Python package designed to convert genomic regions and intervals into FASTA alignments using VCF files, GFF/GTF files, and a reference FASTA genome. This tool is particularly useful for bioinformaticians and researchers working with genomic data.
 

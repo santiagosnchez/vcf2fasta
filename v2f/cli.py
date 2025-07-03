@@ -21,6 +21,12 @@ def main():
         print("Either --gff or --bed are required. Exiting ...")
         sys.exit(parser.print_help())
     else:
+        if args.gff and not args.feat:
+            print(
+                "No feature (--feat) specified. Defaulting to 'gene'. "
+                "If you want to extract all features, use --feat ''"
+            )
+            args.feat = "gene"
         if args.bed:
             print("Reading BED file [", args.bed, "] ... ", end="", sep="")
             intervals = v2f_helper.ReadBED(args.bed)
@@ -58,7 +64,7 @@ def main():
     if args.blend:
         print("Concatenating all [", args.feat, "]")
     else:
-        print("Writing all [", args.feat, "] separately")
+        print("Writing all [", "intervals" if args.feat == "" else args.feat, "] separately")
     print("Setting output directory to:", outdir)
 
     if not os.path.exists(outdir):

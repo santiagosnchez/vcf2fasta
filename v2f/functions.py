@@ -8,18 +8,16 @@ import collections
 # of sequences in a dictionary, along with other info
 def getSequences(intervals, gene, ref, vcf, ploidy, phased, samples, args):
     seqs = collections.defaultdict()
+    feat_str = "_" if args.feat == "" else "_" + args.feat + "_"
     # prep sequence dictionary
     if args.blend:
         seqs[gene] = collections.defaultdict()
     else:
         feat_ind = 0
-        if args.feat:
-            for rec in intervals[gene]:
-                featname = gene + "_" + args.feat + "_" + str(feat_ind)
-                seqs[featname] = collections.defaultdict()
-                feat_ind += 1
-        else:
-            seqs[gene] = collections.defaultdict()
+        for rec in intervals[gene]:
+            featname = gene + feat_str + str(feat_ind)
+            seqs[featname] = collections.defaultdict()
+            feat_ind += 1
 
     if phased:
         for key in seqs.keys():
@@ -43,7 +41,7 @@ def getSequences(intervals, gene, ref, vcf, ploidy, phased, samples, args):
     codon_start = collections.defaultdict(list)
     for rec in intervals[gene]:
         if not args.blend:
-            featname = gene + "_" + args.feat + "_" + str(feat_ind)
+            featname = gene + feat_str + str(feat_ind)
             feat_ind += 1
         # get a new copy of seqs for every feature
         tmpseqs = collections.defaultdict()

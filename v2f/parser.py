@@ -54,10 +54,11 @@ def get_parser():
     parser.add_argument(
         "--feat",
         "-e",
+        default="",
         metavar="FEAT",
         type=str,
         required=False,
-        help="feature/annotation in the GFF file. (i.e. gene, CDS, intron)",
+        help="feature/annotation in the GFF file. (i.e. gene, CDS, intron); default: ''.\n",
     )
     parser.add_argument(
         "--blend",

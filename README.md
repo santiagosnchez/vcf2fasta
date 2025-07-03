@@ -18,10 +18,11 @@ To install `vcf2fasta`, you can use pip:
 pip install vcf2fasta
 ```
 
-Make sure you have the required dependencies installed, including `pysam` and `art`. You can install them using:
+## Build
+Build the package locally with:
 
-```bash
-pip install pysam art
+```
+python3 -m pip install -e .
 ```
 
 ## Usage

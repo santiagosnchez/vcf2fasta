@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vcf2fasta"
-version = "0.1.1"
+version = "0.1.2"
 description = "A package to convert VCF files to FASTA format."
 authors = [{ name = "Santiago Sanchez", email = "santiago.sanchez@gmail.com" }]
 license = { file = "LICENSE" }

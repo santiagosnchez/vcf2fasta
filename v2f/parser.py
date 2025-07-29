@@ -96,5 +96,11 @@ def get_parser():
         default=False,
         help="skips features without variants (default: False)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="no prompt for file overwritting (default: False)",
+    )
 
     return parser

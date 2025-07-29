@@ -67,8 +67,8 @@ def main():
         print("Writing all [", "intervals" if args.feat == "" else args.feat, "] separately")
     print("Setting output directory to:", outdir)
 
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
+    if not os.path.exists(outdir) or args.force:
+        os.makedirs(outdir, exist_ok=True)
     else:
         proceed = input(
             outdir + " exists. Files will me replaced. Do you want to proceed? [y|n]: "

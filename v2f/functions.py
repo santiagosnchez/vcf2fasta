@@ -39,6 +39,7 @@ def getSequences(intervals, gene, ref, vcf, ploidy, phased, samples, args):
     feat_ind = 0
     featname = gene
     codon_start = collections.defaultdict(list)
+    strands = {}
     for rec in intervals[gene]:
         if not args.blend:
             featname = gene + feat_str + str(feat_ind)
@@ -56,6 +57,8 @@ def getSequences(intervals, gene, ref, vcf, ploidy, phased, samples, args):
                 rec[6],
                 rec[7],
             )
+        # record strand for this feature
+        strands[featname] = strand
         # add cs to codon_start
         codon_start[featname].append(cs)
         # extract sequence from reference
@@ -83,29 +86,33 @@ def getSequences(intervals, gene, ref, vcf, ploidy, phased, samples, args):
             posadd += max_len - ref_len
         for sample in seqs[featname].keys():
             seqs[featname][sample] = seqs[featname][sample] + tmpseqs[sample]
-    # reverse complement sequence if needed
-    if strand == "-":
-        for sample in seqs[featname].keys():
-            seqs[featname][sample] = revcomp(seqs[featname][sample])
+    # reverse complement sequences per feature if needed
+    for fname in seqs.keys():
+        if strands.get(fname) == "-":
+            for sample in seqs[fname].keys():
+                seqs[fname][sample] = revcomp(seqs[fname][sample])
     # adjust if inframe is on
     if args.inframe:
-        if args.blend and codon_start[featname][0] != ".":
-            if strand == "+" and codon_start[featname][0] != "0":
-                for key in seqs[featname].keys():
-                    seqs[featname][key] = seqs[featname][key][
-                        int(codon_start[featname][0]) :
-                    ]
-            elif strand == "-" and codon_start[featname][-1] != "0":
-                for key in seqs[featname].keys():
-                    seqs[featname][key] = seqs[featname][key][
-                        int(codon_start[featname][-1]) :
-                    ]
+        if args.blend:
+            for fname in seqs.keys():
+                if codon_start[fname][0] != ".":
+                    if strands.get(fname) == "+" and codon_start[fname][0] != "0":
+                        for key in seqs[fname].keys():
+                            seqs[fname][key] = seqs[fname][key][
+                                int(codon_start[fname][0]) :
+                            ]
+                    elif strands.get(fname) == "-" and codon_start[fname][-1] != "0":
+                        for key in seqs[fname].keys():
+                            seqs[fname][key] = seqs[fname][key][
+                                int(codon_start[fname][-1]) :
+                            ]
         elif not args.blend:
-            for featname in seqs.keys():
-                for key in seqs[featname].keys():
-                    seqs[featname][key] = seqs[featname][key][
-                        int(codon_start[featname][0]) :
-                    ]
+            for fname in seqs.keys():
+                if codon_start[fname][0] != "." and codon_start[fname][0] != "0":
+                    for key in seqs[fname].keys():
+                        seqs[fname][key] = seqs[fname][key][
+                            int(codon_start[fname][0]) :
+                        ]
     return seqs, varsites
 
 

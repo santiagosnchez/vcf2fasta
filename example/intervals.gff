@@ -3,3 +3,7 @@
 1	.	CDS	500	1000	.	+	0	ID=exon2;Parent=g1
 2	.	gene	12	200	.	-	.	ID=gene2;Name=g2
 2	.	CDS	12	200	.	-	.	ID=exon2;Parent=g2
+
+1	.	gene	200	260	.	-	.	ID=gene_edge;Name=gene_edge
+1	.	CDS	200	220	.	-	2	ID=gene_edge_exon1;Parent=gene_edge
+1	.	CDS	240	260	.	-	0	ID=gene_edge_exon2;Parent=gene_edge

@@ -260,9 +260,14 @@ def getFeature(file):
     features = collections.defaultdict()
     with open(file, "r") as f:
         for line in f:
-            if line[0] != "#":
-                fields = line.rstrip().split("\t")
-                features[fields[2]] = None
+            if not line.strip():
+                continue
+            if line.lstrip().startswith("#"):
+                continue
+            fields = line.rstrip().split("\t")
+            if len(fields) < 3:
+                continue
+            features[fields[2]] = None
     return list(features.keys())
 
 
@@ -275,24 +280,34 @@ def getGeneNames(file, format):
     with open(file, "r") as f:
         if format == "gff":
             for line in f:
-                if line[0] != "#":
-                    fields = line.rstrip().split("\t")
-                    last = processGeneNameGFF(fields[8])
-                    if last.get("Name"):
-                        geneNames[last["Name"]] = None
-                    elif last.get("Parent"):
-                        geneNames[last["Parent"]] = None
-                    elif last.get("ID"):
-                        geneNames[last["ID"]] = None
+                if not line.strip():
+                    continue
+                if line.lstrip().startswith("#"):
+                    continue
+                fields = line.rstrip().split("\t")
+                if len(fields) < 9:
+                    continue
+                last = processGeneNameGFF(fields[8])
+                if last.get("Name"):
+                    geneNames[last["Name"]] = None
+                elif last.get("Parent"):
+                    geneNames[last["Parent"]] = None
+                elif last.get("ID"):
+                    geneNames[last["ID"]] = None
         elif format == "gtf":
             for line in f:
-                if line[0] != "#":
-                    fields = line.rstrip().split("\t")
-                    last = processGeneNameGTF(fields[8])
-                    if last.get("transcript_id"):
-                        geneNames[last["transcript_id"]] = None
-                    elif last.get("gene_id"):
-                        geneNames[last["gene_id"]] = None
+                if not line.strip():
+                    continue
+                if line.lstrip().startswith("#"):
+                    continue
+                fields = line.rstrip().split("\t")
+                if len(fields) < 9:
+                    continue
+                last = processGeneNameGTF(fields[8])
+                if last.get("transcript_id"):
+                    geneNames[last["transcript_id"]] = None
+                elif last.get("gene_id"):
+                    geneNames[last["gene_id"]] = None
     return list(geneNames.keys())
 
 
@@ -358,28 +373,38 @@ def ReadGFF(file, parser):
     with open(file, "r") as f:
         if format == "gff":
             for line in f:
-                if line[0] != "#":
-                    fields = line.rstrip().split("\t")
-                    last = processGeneNameGFF(fields[8])
-                    if last.get("Name"):
-                        gff[last["Name"]][fields[2]].append(fields)
-                    elif last.get("Parent"):
-                        gff[last["Parent"]][fields[2]].append(fields)
-                    else:
-                        gff[last["ID"]][fields[2]].append(fields)
-                    # if last.get('Parent'):
-                    #     gff[last['Parent']][fields[2]].append(fields)
-                    # elif last.get('Name'):
-                    #     gff[last['Name']][fields[2]].append(fields)
+                if not line.strip():
+                    continue
+                if line.lstrip().startswith("#"):
+                    continue
+                fields = line.rstrip().split("\t")
+                if len(fields) < 9:
+                    continue
+                last = processGeneNameGFF(fields[8])
+                if last.get("Name"):
+                    gff[last["Name"]][fields[2]].append(fields)
+                elif last.get("Parent"):
+                    gff[last["Parent"]][fields[2]].append(fields)
+                else:
+                    gff[last["ID"]][fields[2]].append(fields)
+                # if last.get('Parent'):
+                #     gff[last['Parent']][fields[2]].append(fields)
+                # elif last.get('Name'):
+                #     gff[last['Name']][fields[2]].append(fields)
         elif format == "gtf":
             for line in f:
-                if line[0] != "#":
-                    fields = line.rstrip().split("\t")
-                    last = processGeneNameGTF(fields[8])
-                    if last.get("transcript_id"):
-                        gff[last["transcript_id"]][fields[2]].append(fields)
-                    elif last.get("gene_id"):
-                        gff[last["gene_id"]][fields[2]].append(fields)
+                if not line.strip():
+                    continue
+                if line.lstrip().startswith("#"):
+                    continue
+                fields = line.rstrip().split("\t")
+                if len(fields) < 9:
+                    continue
+                last = processGeneNameGTF(fields[8])
+                if last.get("transcript_id"):
+                    gff[last["transcript_id"]][fields[2]].append(fields)
+                elif last.get("gene_id"):
+                    gff[last["gene_id"]][fields[2]].append(fields)
     return gff
 
 

@@ -64,7 +64,11 @@ def main():
     if args.blend:
         print("Concatenating all [", args.feat, "]")
     else:
-        print("Writing all [", "intervals" if args.feat == "" else args.feat, "] separately")
+        print(
+            "Writing all [",
+            "intervals" if args.feat == "" else args.feat,
+            "] separately",
+        )
     print("Setting output directory to:", outdir)
 
     if not os.path.exists(outdir) or args.force:
@@ -103,11 +107,15 @@ def main():
         if args.skip and varsites != 0:
             withdata += 1
             for featname in sequences.keys():
-                with open(outdir + "/" + featname + ".fas", "w") as out:
+                with open(
+                    outdir + "/" + featname.replace("/", "_") + ".fas", "w"
+                ) as out:
                     v2f_helper.printFasta(sequences[featname], out)
         elif not args.skip:
             for featname in sequences.keys():
-                with open(outdir + "/" + featname + ".fas", "w") as out:
+                with open(
+                    outdir + "/" + featname.replace("/", "_") + ".fas", "w"
+                ) as out:
                     v2f_helper.printFasta(sequences[featname], out)
         feature_counter += 1
         progress = v2f_helper.make_progress_bar(feature_counter, len(genes), t1, 70)
